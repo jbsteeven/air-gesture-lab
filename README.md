@@ -13,12 +13,17 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 - **v0.6.1** — dwell con isteresi e grace period per tollerare il naturale tremolio della mano.
 - **v0.7** — Smart Dwell adattivo alla stabilità e `command-router.js` per la gestione contestuale dei comandi.
 - **v0.8** — AutoTune della scala della mano: soglie pinch compensate in funzione della distanza mano-camera, tracking quality e toggle persistente.
+- **v0.9** — `session-metrics.js`: misure locali su qualità tracking, stabilità del puntatore, intent annullati, perdite della mano, gesture e dwell completati.
 
 ## Architettura
 
 `Front Camera -> MediaPipe Hands -> AirGestureEngine -> AirCommandRouter -> Application UI`
 
-`AirGestureEngine` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`). `AirCommandRouter` assegna a ogni evento un significato in base al contesto attivo (`workspace`, `detail`, `locked`). La UI non deve conoscere la logica di computer vision.
+Componenti principali:
+
+- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`).
+- `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `locked`).
+- `session-metrics.js` osserva la sessione e produce indicatori diagnostici senza intervenire sui comandi.
 
 ## Smart Dwell
 
@@ -28,10 +33,14 @@ Il dwell valuta la stabilità del puntatore, mantiene il target attraverso picco
 
 Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Questo riduce la dipendenza dalla distanza fra mano e camera. L'interfaccia mostra anche qualità, distanza indicativa e fattore di scala applicato. AutoTune può essere disattivato e la preferenza viene salvata localmente.
 
+## Session Quality
+
+La v0.9 aggiunge una telemetria locale di sessione: qualità media del tracking, stabilità del puntatore, rapporto fra intent completati e annullati, numero di perdite della mano, gesture eseguite e selezioni dwell. I dati non vengono inviati né persistiti: vengono azzerati a ogni nuova sessione.
+
 ## Privacy
 
 Il video della camera non viene mostrato nell'interfaccia né salvato dall'app. L'elaborazione del tracking avviene nel browser sul dispositivo. L'accesso alla fotocamera richiede HTTPS e consenso esplicito.
 
 ## Roadmap
 
-Componenti gesture-native riutilizzabili, metriche su falsi positivi, profili personali di calibrazione, test cross-device e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Profili personali di calibrazione, test cross-device, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
