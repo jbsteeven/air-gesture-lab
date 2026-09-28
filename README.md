@@ -19,6 +19,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.0** — Practice Mode: sandbox gesture-safe che riconosce pinch, swipe, scroll e pugno senza eseguire azioni reali.
 - **v1.1** — Personal Calibration: profilo locale guidato che apprende distanza naturale della mano e geometria personale del pinch.
 - **v1.2** — Profile Health: validazione passiva del profilo personale attraverso più sessioni, senza modificare automaticamente le soglie già stabilizzate.
+- **v1.3** — Profile Memory: memoria locale delle ultime sessioni validate per distinguere una variazione occasionale da una deriva persistente del profilo.
 
 ## Architettura
 
@@ -31,6 +32,7 @@ Componenti principali:
 - `session-metrics.js` osserva la sessione e produce indicatori diagnostici senza intervenire sui comandi.
 - `personal-calibration.js` esegue una procedura guidata in due passaggi e restituisce i parametri personali da applicare al motore.
 - `profile-health.js` confronta nel tempo l'uso reale con il profilo personale e produce un indicatore di coerenza cross-session senza cambiare autonomamente il Gesture Engine.
+- `profile-memory.js` conserva una sintesi delle ultime sessioni validate e ne calcola l'andamento storico senza modificare le soglie del motore.
 
 ## Safe Neutral
 
@@ -73,6 +75,19 @@ Dopo un numero minimo di campioni il profilo viene classificato come `VALID`, `A
 
 Una sintesi della validazione viene salvata in `localStorage` come `air_profile_health`, insieme al numero di sessioni validate. Non vengono salvati landmark, immagini o frame della fotocamera.
 
+## Profile Memory
+
+La v1.3 aggiunge `profile-memory.js`. Ogni sessione sufficientemente validata aggiorna una sola voce locale identificata tramite `sessionStorage`; ricaricamenti e aggiornamenti della stessa sessione non generano duplicati. Vengono mantenute al massimo le ultime otto sessioni associate all'attuale profilo personale.
+
+Il pannello `PROFILE MEMORY` mostra fino a sei barre storiche e classifica l'andamento come:
+
+- `LEARNING` — è disponibile una sola sessione e non c'è ancora uno storico sufficiente;
+- `STABLE` — il profilo è rimasto coerente nel tempo;
+- `WATCH` — esiste uno scostamento moderato da osservare nelle sessioni successive;
+- `REVIEW` — lo storico suggerisce di valutare una nuova calibrazione.
+
+La memoria storica viene azzerata automaticamente quando viene creato un nuovo profilo personale. Anche in questa fase nessuna soglia viene cambiata automaticamente: la memoria serve soltanto a distinguere un episodio isolato da una deriva ripetuta.
+
 ## AutoTune
 
 Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Con un profilo personale attivo, la scala di riferimento viene sostituita con quella misurata durante la calibrazione. AutoTune può essere disattivato e la preferenza viene salvata localmente.
@@ -83,8 +98,8 @@ La telemetria locale misura qualità media del tracking, stabilità del puntator
 
 ## Privacy
 
-Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale e la sintesi Profile Health sono conservati soltanto nel `localStorage` del browser.
+Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale, la sintesi Profile Health e lo storico Profile Memory sono conservati soltanto nel browser (`localStorage`/`sessionStorage`).
 
 ## Roadmap
 
-Validazione del profilo personale su più sessioni e dispositivi, confronto fra profili, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Confronto tra sessioni e dispositivi, indicatori di drift più evoluti, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
