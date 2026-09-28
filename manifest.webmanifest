@@ -1,1 +1,1 @@
-{"name":"Air Gesture Lab","short_name":"Gesture Lab","start_url":"./","display":"standalone","background_color":"#071018","theme_color":"#071018","description":"Prototype gesture-first PWA controlled by hand movements."}
+{"name":"Air Gesture Lab","short_name":"Gesture Lab","id":"./","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","lang":"it","background_color":"#071018","theme_color":"#071018","description":"PWA gesture-first con hand tracking nel browser, profilo personale e diagnostica locale."}
