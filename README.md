@@ -12,30 +12,42 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 - **v0.6** — dwell selection, preferenze persistenti e Safety Lock tramite pugno.
 - **v0.6.1** — dwell con isteresi e grace period per tollerare il naturale tremolio della mano.
 - **v0.7** — Smart Dwell adattivo alla stabilità e `command-router.js` per la gestione contestuale dei comandi.
-- **v0.8** — AutoTune della scala della mano: soglie pinch compensate in funzione della distanza mano-camera, tracking quality e toggle persistente.
-- **v0.9** — `session-metrics.js`: misure locali su qualità tracking, stabilità del puntatore, intent annullati, perdite della mano, gesture e dwell completati.
+- **v0.8** — AutoTune della scala della mano: soglie pinch compensate in funzione della distanza mano-camera.
+- **v0.9** — `session-metrics.js`: misure locali su qualità tracking, stabilità, intent annullati, perdite mano, gesture e dwell.
+- **v0.9.1** — Guarded Poses: palmo e pugno richiedono una posa più stabile e mantenuta.
+- **v0.9.2** — Safe Neutral: gate neutrale prima dei comandi, dwell rallentato e scroll dedicato a due dita.
 
 ## Architettura
 
-`Front Camera -> MediaPipe Hands -> AirGestureEngine -> AirCommandRouter -> Application UI`
+`Front Camera -> MediaPipe Hands -> AirGestureEngine -> AirCommandRouter -> Session Metrics -> Application UI`
 
 Componenti principali:
 
-- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`).
+- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`) e gestisce il nuovo stato neutrale.
 - `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `locked`).
 - `session-metrics.js` osserva la sessione e produce indicatori diagnostici senza intervenire sui comandi.
 
-## Smart Dwell
+## Safe Neutral
 
-Il dwell valuta la stabilità del puntatore, mantiene il target attraverso piccole uscite dal bordo e applica isteresi e grace period. L'obiettivo è rendere la selezione senza pinch più naturale su smartphone reali.
+Nella v0.9.2 i comandi discreti non sono immediatamente disponibili: la mano deve prima restare per un breve periodo in una configurazione che non corrisponde a palmo, pugno, pinch o scroll. Solo allora il motore espone `NEUTRAL · READY` e arma il comando successivo. Dopo un comando il sistema torna disarmato fino a un nuovo periodo neutrale.
+
+Il palmo e il pugno hanno hold più lunghi e geometrie più severe. Lo swipe richiede un gesto orizzontale molto più netto con posa a indice singolo.
+
+## Slow Dwell
+
+Il dwell introduce prima una fase `SETTLE`, poi un riempimento che non può accelerare oltre il tempo reale. A mano stabile la selezione richiede circa 2,5 secondi complessivi; con maggiore jitter il tempo aumenta ulteriormente. Il dwell progredisce soltanto quando il motore è in `NEUTRAL · READY`.
+
+## 2-Finger Scroll
+
+Lo scroll verticale generico è stato sostituito da una modalità dedicata: indice e medio distesi, anulare e mignolo non distesi. Dopo un breve armamento la UI mostra `SCROLL MODE · ACTIVE`; da quel momento piccoli movimenti verticali della mano generano lo scroll nella pagina di dettaglio.
 
 ## AutoTune
 
-Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Questo riduce la dipendenza dalla distanza fra mano e camera. L'interfaccia mostra anche qualità, distanza indicativa e fattore di scala applicato. AutoTune può essere disattivato e la preferenza viene salvata localmente.
+Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Questo riduce la dipendenza dalla distanza fra mano e camera. AutoTune può essere disattivato e la preferenza viene salvata localmente.
 
 ## Session Quality
 
-La v0.9 aggiunge una telemetria locale di sessione: qualità media del tracking, stabilità del puntatore, rapporto fra intent completati e annullati, numero di perdite della mano, gesture eseguite e selezioni dwell. I dati non vengono inviati né persistiti: vengono azzerati a ogni nuova sessione.
+La telemetria locale misura qualità media del tracking, stabilità del puntatore, rapporto fra intent completati e annullati, numero di perdite della mano, gesture eseguite e selezioni dwell. I dati non vengono inviati né persistiti: vengono azzerati a ogni nuova sessione.
 
 ## Privacy
 
