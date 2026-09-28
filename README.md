@@ -12,6 +12,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 - **v0.6** — dwell selection, preferenze persistenti e Safety Lock tramite pugno.
 - **v0.6.1** — dwell con isteresi e grace period per tollerare il naturale tremolio della mano.
 - **v0.7** — Smart Dwell adattivo alla stabilità e `command-router.js` per la gestione contestuale dei comandi.
+- **v0.8** — AutoTune della scala della mano: soglie pinch compensate in funzione della distanza mano-camera, tracking quality e toggle persistente.
 
 ## Architettura
 
@@ -21,7 +22,11 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 
 ## Smart Dwell
 
-Il dwell non usa più soltanto un timer fisso. Valuta la stabilità del puntatore, mantiene il target attraverso piccole uscite dal bordo e applica isteresi e grace period. L'obiettivo è rendere la selezione senza pinch più naturale su smartphone reali.
+Il dwell valuta la stabilità del puntatore, mantiene il target attraverso piccole uscite dal bordo e applica isteresi e grace period. L'obiettivo è rendere la selezione senza pinch più naturale su smartphone reali.
+
+## AutoTune
+
+Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Questo riduce la dipendenza dalla distanza fra mano e camera. L'interfaccia mostra anche qualità, distanza indicativa e fattore di scala applicato. AutoTune può essere disattivato e la preferenza viene salvata localmente.
 
 ## Privacy
 
@@ -29,4 +34,4 @@ Il video della camera non viene mostrato nell'interfaccia né salvato dall'app. 
 
 ## Roadmap
 
-Componenti gesture-native riutilizzabili, calibrazione personale, metriche su falsi positivi, persistenza dei profili utente e test cross-device.
+Componenti gesture-native riutilizzabili, metriche su falsi positivi, profili personali di calibrazione, test cross-device e pacchetto SDK/documentazione per integrare il motore in altre PWA.
