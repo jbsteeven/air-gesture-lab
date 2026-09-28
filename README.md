@@ -16,6 +16,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 - **v0.9** — `session-metrics.js`: misure locali su qualità tracking, stabilità, intent annullati, perdite mano, gesture e dwell.
 - **v0.9.1** — Guarded Poses: palmo e pugno richiedono una posa più stabile e mantenuta.
 - **v0.9.2** — Safe Neutral: gate neutrale prima dei comandi, dwell rallentato e scroll dedicato a due dita.
+- **v1.0** — Practice Mode: sandbox gesture-safe che riconosce pinch, swipe, scroll e pugno senza eseguire azioni reali.
 
 ## Architettura
 
@@ -23,15 +24,15 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 
 Componenti principali:
 
-- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`) e gestisce il nuovo stato neutrale.
-- `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `locked`).
+- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`) e gestisce lo stato neutrale.
+- `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `practice`, `locked`).
 - `session-metrics.js` osserva la sessione e produce indicatori diagnostici senza intervenire sui comandi.
 
 ## Safe Neutral
 
-Nella v0.9.2 i comandi discreti non sono immediatamente disponibili: la mano deve prima restare per un breve periodo in una configurazione che non corrisponde a palmo, pugno, pinch o scroll. Solo allora il motore espone `NEUTRAL · READY` e arma il comando successivo. Dopo un comando il sistema torna disarmato fino a un nuovo periodo neutrale.
+I comandi discreti non sono immediatamente disponibili: la mano deve prima restare per un breve periodo in una configurazione che non corrisponde a palmo, pugno, pinch o scroll. Solo allora il motore espone `NEUTRAL · READY` e arma il comando successivo. Dopo un comando il sistema torna disarmato fino a un nuovo periodo neutrale.
 
-Il palmo e il pugno hanno hold più lunghi e geometrie più severe. Lo swipe richiede un gesto orizzontale molto più netto con posa a indice singolo.
+Il palmo e il pugno hanno hold lunghi e geometrie più severe. Lo swipe richiede un gesto orizzontale netto con posa a indice singolo.
 
 ## Slow Dwell
 
@@ -39,7 +40,11 @@ Il dwell introduce prima una fase `SETTLE`, poi un riempimento che non può acce
 
 ## 2-Finger Scroll
 
-Lo scroll verticale generico è stato sostituito da una modalità dedicata: indice e medio distesi, anulare e mignolo non distesi. Dopo un breve armamento la UI mostra `SCROLL MODE · ACTIVE`; da quel momento piccoli movimenti verticali della mano generano lo scroll nella pagina di dettaglio.
+Lo scroll verticale usa una modalità dedicata: indice e medio distesi, anulare e mignolo non distesi. Dopo un breve armamento la UI mostra `SCROLL MODE · ACTIVE`; da quel momento piccoli movimenti verticali della mano generano lo scroll nella pagina di dettaglio.
+
+## Practice Mode
+
+La v1.0 introduce un contesto `practice`. In questa modalità pinch, swipe, scroll e pugno vengono riconosciuti e mostrati nell'interfaccia, ma il router non esegue navigazione, lock o altre azioni. Il palmo aperto e mantenuto viene usato soltanto per uscire dal Practice Mode. Questo permette di imparare la posizione neutrale e le gesture in sicurezza prima di usarle nell'applicazione reale.
 
 ## AutoTune
 
