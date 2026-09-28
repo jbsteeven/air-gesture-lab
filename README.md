@@ -1,6 +1,6 @@
 # Air Gesture Lab
 
-PWA **gesture-native** controllata tramite la fotocamera frontale senza visualizzare né registrare il flusso video.
+PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare il flusso video nell'interfaccia.
 
 ## Stato del progetto
 
@@ -17,6 +17,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 - **v0.9.1** — Guarded Poses: palmo e pugno richiedono una posa più stabile e mantenuta.
 - **v0.9.2** — Safe Neutral: gate neutrale prima dei comandi, dwell rallentato e scroll dedicato a due dita.
 - **v1.0** — Practice Mode: sandbox gesture-safe che riconosce pinch, swipe, scroll e pugno senza eseguire azioni reali.
+- **v1.1** — Personal Calibration: profilo locale guidato che apprende distanza naturale della mano e geometria personale del pinch.
 
 ## Architettura
 
@@ -24,9 +25,10 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza visualiz
 
 Componenti principali:
 
-- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`) e gestisce lo stato neutrale.
-- `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `practice`, `locked`).
+- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`), gestisce Safe Neutral e applica opzionalmente un profilo personale.
+- `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `practice`, `calibration`, `locked`).
 - `session-metrics.js` osserva la sessione e produce indicatori diagnostici senza intervenire sui comandi.
+- `personal-calibration.js` esegue una procedura guidata in due passaggi e restituisce i parametri personali da applicare al motore.
 
 ## Safe Neutral
 
@@ -44,11 +46,22 @@ Lo scroll verticale usa una modalità dedicata: indice e medio distesi, anulare 
 
 ## Practice Mode
 
-La v1.0 introduce un contesto `practice`. In questa modalità pinch, swipe, scroll e pugno vengono riconosciuti e mostrati nell'interfaccia, ma il router non esegue navigazione, lock o altre azioni. Il palmo aperto e mantenuto viene usato soltanto per uscire dal Practice Mode. Questo permette di imparare la posizione neutrale e le gesture in sicurezza prima di usarle nell'applicazione reale.
+La v1.0 introduce un contesto `practice`. In questa modalità pinch, swipe, scroll e pugno vengono riconosciuti e mostrati nell'interfaccia, ma il router non esegue navigazione, lock o altre azioni. Il palmo aperto e mantenuto viene usato soltanto per uscire dal Practice Mode.
+
+## Personal Calibration
+
+La v1.1 aggiunge il modulo `Personal`. La procedura è volutamente conservativa e non modifica palmo, pugno o logica di sicurezza già validati.
+
+La calibrazione misura:
+
+1. la scala media della mano nella distanza d'uso naturale;
+2. tre pinch completi, da cui ricava un piccolo fattore personale per la soglia thumb-index.
+
+I valori sono limitati a un intervallo sicuro e vengono salvati in `localStorage` come `air_personal`. Alla sessione successiva vengono applicati automaticamente insieme ad AutoTune. Aprendo nuovamente `Personal` si esegue una nuova calibrazione; se si esce prima della fine, il profilo precedente rimane invariato.
 
 ## AutoTune
 
-Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Questo riduce la dipendenza dalla distanza fra mano e camera. AutoTune può essere disattivato e la preferenza viene salvata localmente.
+Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Con un profilo personale attivo, la scala di riferimento viene sostituita con quella misurata durante la calibrazione. AutoTune può essere disattivato e la preferenza viene salvata localmente.
 
 ## Session Quality
 
@@ -56,8 +69,8 @@ La telemetria locale misura qualità media del tracking, stabilità del puntator
 
 ## Privacy
 
-Il video della camera non viene mostrato nell'interfaccia né salvato dall'app. L'elaborazione del tracking avviene nel browser sul dispositivo. L'accesso alla fotocamera richiede HTTPS e consenso esplicito.
+Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale è conservato soltanto nel `localStorage` del browser.
 
 ## Roadmap
 
-Profili personali di calibrazione, test cross-device, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Validazione del profilo personale su più sessioni, test cross-device, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
