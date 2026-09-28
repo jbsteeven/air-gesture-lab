@@ -20,6 +20,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.1** — Personal Calibration: profilo locale guidato che apprende distanza naturale della mano e geometria personale del pinch.
 - **v1.2** — Profile Health: validazione passiva del profilo personale attraverso più sessioni, senza modificare automaticamente le soglie già stabilizzate.
 - **v1.3** — Profile Memory: memoria locale delle ultime sessioni validate per distinguere una variazione occasionale da una deriva persistente del profilo.
+- **v1.4** — Drift Guard: analisi del trend cross-session per distinguere profilo centrato, deriva progressiva e spostamento persistente, senza modificare il Gesture Engine.
 
 ## Architettura
 
@@ -33,6 +34,7 @@ Componenti principali:
 - `personal-calibration.js` esegue una procedura guidata in due passaggi e restituisce i parametri personali da applicare al motore.
 - `profile-health.js` confronta nel tempo l'uso reale con il profilo personale e produce un indicatore di coerenza cross-session senza cambiare autonomamente il Gesture Engine.
 - `profile-memory.js` conserva una sintesi delle ultime sessioni validate e ne calcola l'andamento storico senza modificare le soglie del motore.
+- `drift-monitor.js` analizza lo storico già disponibile e calcola tendenza della scala, variazione della qualità e scostamento persistente rispetto al profilo personale.
 
 ## Safe Neutral
 
@@ -88,6 +90,25 @@ Il pannello `PROFILE MEMORY` mostra fino a sei barre storiche e classifica l'and
 
 La memoria storica viene azzerata automaticamente quando viene creato un nuovo profilo personale. Anche in questa fase nessuna soglia viene cambiata automaticamente: la memoria serve soltanto a distinguere un episodio isolato da una deriva ripetuta.
 
+## Drift Guard
+
+La v1.4 aggiunge `drift-monitor.js`, che usa esclusivamente lo storico già registrato in `air_profile_memory` e non osserva direttamente i frame o i landmark.
+
+Dopo almeno tre sessioni validate calcola:
+
+- trend della scala d'uso da una sessione alla successiva;
+- trend della qualità del profilo;
+- scostamento recente rispetto alla scala personale di riferimento;
+- persistenza di uno spostamento nelle ultime sessioni.
+
+Il risultato viene mostrato nel pannello `PROFILE MEMORY` come:
+
+- `CENTERED` / `CENTRATO` — storico coerente, senza deriva significativa;
+- `DRIFTING` / `IN OSSERVAZIONE` — è presente una tendenza da monitorare;
+- `SHIFTED` / `SPOSTATO` — lo scostamento appare persistente e può essere opportuno rifare la calibrazione.
+
+Anche Drift Guard è soltanto diagnostico: **non cambia automaticamente alcuna soglia del motore**.
+
 ## AutoTune
 
 Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Con un profilo personale attivo, la scala di riferimento viene sostituita con quella misurata durante la calibrazione. AutoTune può essere disattivato e la preferenza viene salvata localmente.
@@ -96,10 +117,14 @@ Il motore misura in continuo una scala geometrica della mano dai landmark e la u
 
 La telemetria locale misura qualità media del tracking, stabilità del puntatore, rapporto fra intent completati e annullati, numero di perdite della mano, gesture eseguite e selezioni dwell. I dati non vengono inviati né persistiti: vengono azzerati a ogni nuova sessione.
 
+## PWA e cache
+
+Dalla v1.4 il service worker applica il fallback HTML soltanto alle navigazioni same-origin. Le richieste esterne, come gli asset MediaPipe caricati da jsDelivr, non vengono più sostituite erroneamente con `index.html` in caso di errore di rete. Il manifest include `id`, `scope`, orientamento portrait e lingua italiana.
+
 ## Privacy
 
 Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale, la sintesi Profile Health e lo storico Profile Memory sono conservati soltanto nel browser (`localStorage`/`sessionStorage`).
 
 ## Roadmap
 
-Confronto tra sessioni e dispositivi, indicatori di drift più evoluti, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Confronto tra sessioni e dispositivi, recovery robusta quando la mano esce dall'inquadratura, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
