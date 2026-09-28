@@ -18,6 +18,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v0.9.2** — Safe Neutral: gate neutrale prima dei comandi, dwell rallentato e scroll dedicato a due dita.
 - **v1.0** — Practice Mode: sandbox gesture-safe che riconosce pinch, swipe, scroll e pugno senza eseguire azioni reali.
 - **v1.1** — Personal Calibration: profilo locale guidato che apprende distanza naturale della mano e geometria personale del pinch.
+- **v1.2** — Profile Health: validazione passiva del profilo personale attraverso più sessioni, senza modificare automaticamente le soglie già stabilizzate.
 
 ## Architettura
 
@@ -29,6 +30,7 @@ Componenti principali:
 - `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `practice`, `calibration`, `locked`).
 - `session-metrics.js` osserva la sessione e produce indicatori diagnostici senza intervenire sui comandi.
 - `personal-calibration.js` esegue una procedura guidata in due passaggi e restituisce i parametri personali da applicare al motore.
+- `profile-health.js` confronta nel tempo l'uso reale con il profilo personale e produce un indicatore di coerenza cross-session senza cambiare autonomamente il Gesture Engine.
 
 ## Safe Neutral
 
@@ -59,6 +61,18 @@ La calibrazione misura:
 
 I valori sono limitati a un intervallo sicuro e vengono salvati in `localStorage` come `air_personal`. Alla sessione successiva vengono applicati automaticamente insieme ad AutoTune. Aprendo nuovamente `Personal` si esegue una nuova calibrazione; se si esce prima della fine, il profilo precedente rimane invariato.
 
+## Profile Health
+
+La v1.2 aggiunge una validazione passiva del profilo personale. `profile-health.js` osserva soltanto grandezze già prodotte dal motore e calcola tre aspetti:
+
+- scostamento della scala d'uso rispetto alla calibrazione personale;
+- consistenza della distanza della mano durante la sessione;
+- frequenza con cui AutoTune raggiunge i limiti del proprio intervallo di compensazione.
+
+Dopo un numero minimo di campioni il profilo viene classificato come `VALID`, `ADAPT` o `RECALIBRATE`. Il risultato non modifica automaticamente le soglie: serve come guardrail diagnostico e come indicazione per decidere quando rifare `Personal Calibration`.
+
+Una sintesi della validazione viene salvata in `localStorage` come `air_profile_health`, insieme al numero di sessioni validate. Non vengono salvati landmark, immagini o frame della fotocamera.
+
 ## AutoTune
 
 Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Con un profilo personale attivo, la scala di riferimento viene sostituita con quella misurata durante la calibrazione. AutoTune può essere disattivato e la preferenza viene salvata localmente.
@@ -69,8 +83,8 @@ La telemetria locale misura qualità media del tracking, stabilità del puntator
 
 ## Privacy
 
-Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale è conservato soltanto nel `localStorage` del browser.
+Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale e la sintesi Profile Health sono conservati soltanto nel `localStorage` del browser.
 
 ## Roadmap
 
-Validazione del profilo personale su più sessioni, test cross-device, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Validazione del profilo personale su più sessioni e dispositivi, confronto fra profili, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
