@@ -25,6 +25,8 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.5.1** — Personal Controls hotfix: la schermata Personal non avvia più automaticamente la calibrazione, introduce un contesto dedicato e aggiunge selezione con pinch oppure hold assistito per i comandi di gestione.
 - **v1.6** — Hand Recovery: perdita e riacquisizione della mano gestite con reset degli stati residui, blocco temporaneo dei comandi e ritorno obbligatorio a una posa neutrale stabile.
 - **v1.7** — Transfer Check: verifica passiva del profilo dopo importazione su un nuovo dispositivo, con classificazione `COMPATIBLE`, `ADAPTED` o `RECALIBRATE`, senza cambiare le soglie del motore.
+- **v1.7.1** — Personal Freeze Fix: Transfer Check aggiorna il DOM in modo limitato e non ricorsivo, eliminando il freeze della schermata Personal.
+- **v1.8** — Tracking Quality Guard: sospensione preventiva dei comandi quando il tracking degrada prima della perdita completa della mano.
 
 ## Architettura
 
@@ -42,6 +44,7 @@ Componenti principali:
 - `profile-passport.js` esporta/importa il profilo personale in un formato JSON validato e riapplica in modo controllato le preferenze essenziali.
 - `personal-controls.js` separa la gestione del profilo dalla calibrazione e fornisce un'alternativa hold al pinch senza modificare le soglie del Gesture Engine.
 - `hand-recovery.js` intercetta una perdita reale della mano, neutralizza gli stati interni ancora attivi e richiede una riacquisizione stabile prima di restituire il controllo al motore.
+- `tracking-quality-guard.js` valuta condizioni geometriche anomale prima del riconoscimento delle gesture e può consegnare il controllo a Hand Recovery senza modificare le soglie gesture.
 - `transfer-check.js` valida passivamente un profilo importato confrontando la scala d'uso effettiva con la sua calibrazione originale, senza fingerprint del dispositivo e senza auto-modifica dei parametri.
 
 ## Safe Neutral
@@ -60,13 +63,11 @@ Lo scroll verticale usa una modalità dedicata: indice e medio distesi, anulare 
 
 ## Practice Mode
 
-La v1.0 introduce un contesto `practice`. In questa modalità pinch, swipe, scroll e pugno vengono riconosciuti e mostrati nell'interfaccia, ma il router non esegue navigazione, lock o altre azioni. Il palmo aperto e mantenuto viene usato soltanto per uscire dal Practice Mode.
+In questa modalità pinch, swipe, scroll e pugno vengono riconosciuti e mostrati nell'interfaccia, ma il router non esegue navigazione, lock o altre azioni. Il palmo aperto e mantenuto viene usato soltanto per uscire dal Practice Mode.
 
 ## Personal Calibration
 
-La v1.1 aggiunge il modulo `Personal`. La procedura è volutamente conservativa e non modifica palmo, pugno o logica di sicurezza già validati.
-
-La calibrazione misura:
+La procedura misura:
 
 1. la scala media della mano nella distanza d'uso naturale;
 2. tre pinch completi, da cui ricava un piccolo fattore personale per la soglia thumb-index.
@@ -113,24 +114,27 @@ Quando la mano viene persa dopo che il tracking era attivo, il sistema azzera hi
 
 Durante questa fase compare un HUD `HAND RECOVERY`. Il recovery non salva nuovi dati personali e non modifica Profile Passport, Profile Health o Profile Memory.
 
+## Tracking Quality Guard
+
+La v1.8 estende il concetto di Hand Recovery ai casi in cui MediaPipe continua a vedere una mano, ma la geometria osservata diventa temporaneamente poco affidabile.
+
+Prima che il frame raggiunga il riconoscimento delle gesture, `tracking-quality-guard.js` controlla in modo conservativo:
+
+- distanza estremamente diversa dalla scala personale/generica di riferimento;
+- presenza di molti landmark sul bordo dell'inquadratura, segnale che parte della mano sta uscendo dal frame;
+- discontinuità geometriche molto ampie tra frame consecutivi, usate soltanto come segnale di tracking instabile e con soglie volutamente permissive.
+
+Un singolo frame anomalo non avvia un recovery completo. Il sistema disarma gli stati transitori e attende una breve conferma. Se l'anomalia persiste per più frame consecutivi, i comandi vengono sospesi e il controllo passa al già validato `Hand Recovery`, che richiede una nuova posa neutrale stabile prima di restituire il controllo.
+
+Il modulo non modifica `pinchIn`, `pinchOut`, hold, swipe distance, scroll step o altri parametri del Gesture Engine. Durante una Personal Calibration esplicita il Quality Guard non interferisce con la raccolta dei campioni; una perdita completa della mano continua comunque a essere gestita da Hand Recovery.
+
 ## Transfer Check
 
-La v1.7 aggiunge `transfer-check.js`. La verifica si attiva soltanto quando il profilo corrente proviene da un'importazione Profile Passport (`importedAt`). Un profilo calibrato localmente viene mostrato come `LOCAL` e non viene sottoposto al test.
+La verifica si attiva soltanto quando il profilo corrente proviene da un'importazione Profile Passport (`importedAt`). Un profilo calibrato localmente viene mostrato come `LOCAL` e non viene sottoposto al test.
 
-Il controllo raccoglie passivamente almeno 90 campioni mentre la mano è in posa neutrale e non è in corso una calibrazione o un Hand Recovery. Vengono valutati:
+Il controllo raccoglie passivamente almeno 90 campioni mentre la mano è in posa neutrale e non è in corso una calibrazione o un Hand Recovery. Vengono valutati rapporto fra scala osservata e scala importata, dispersione della scala, frequenza di saturazione AutoTune e qualità geometrica media.
 
-- rapporto fra scala della mano osservata e scala di riferimento importata;
-- dispersione della scala durante il test;
-- frequenza con cui AutoTune raggiunge i limiti di compensazione;
-- qualità geometrica media già prodotta dal Gesture Engine.
-
-Al termine il profilo viene classificato come:
-
-- `COMPATIBLE` — il profilo trasferito è coerente con il dispositivo corrente;
-- `ADAPTED` — il profilo resta utilizzabile ma AutoTune sta compensando una differenza misurabile;
-- `RECALIBRATE` — lo scostamento è elevato e viene consigliata una nuova Personal Calibration sul dispositivo corrente.
-
-Transfer Check è deliberatamente diagnostico: non modifica automaticamente soglie, `refScale` o `pinchFactor`. Il risultato viene conservato localmente in `air_transfer_check` ed è invalidato automaticamente quando viene importato o creato un nuovo profilo.
+Al termine il profilo viene classificato come `COMPATIBLE`, `ADAPTED` o `RECALIBRATE`. Transfer Check è deliberatamente diagnostico: non modifica automaticamente soglie, `refScale` o `pinchFactor`.
 
 ## AutoTune
 
@@ -150,4 +154,4 @@ Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app no
 
 ## Roadmap
 
-Recovery estesa a condizioni di tracking degradato, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Consolidamento dei moduli di robustezza, componenti gesture-native riutilizzabili, API pubblica del motore e pacchetto SDK/documentazione per integrare Air Gesture Lab in altre PWA.
