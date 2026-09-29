@@ -21,6 +21,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.2** — Profile Health: validazione passiva del profilo personale attraverso più sessioni, senza modificare automaticamente le soglie già stabilizzate.
 - **v1.3** — Profile Memory: memoria locale delle ultime sessioni validate per distinguere una variazione occasionale da una deriva persistente del profilo.
 - **v1.4** — Drift Guard: analisi del trend cross-session per distinguere profilo centrato, deriva progressiva e spostamento persistente, senza modificare il Gesture Engine.
+- **v1.5** — Profile Passport: esportazione/importazione portabile del profilo personale e delle preferenze essenziali tra dispositivi, senza trasferire immagini, frame o landmark.
 
 ## Architettura
 
@@ -35,6 +36,7 @@ Componenti principali:
 - `profile-health.js` confronta nel tempo l'uso reale con il profilo personale e produce un indicatore di coerenza cross-session senza cambiare autonomamente il Gesture Engine.
 - `profile-memory.js` conserva una sintesi delle ultime sessioni validate e ne calcola l'andamento storico senza modificare le soglie del motore.
 - `drift-monitor.js` analizza lo storico già disponibile e calcola tendenza della scala, variazione della qualità e scostamento persistente rispetto al profilo personale.
+- `profile-passport.js` esporta/importa il profilo personale in un formato JSON validato e riapplica in modo controllato le preferenze essenziali.
 
 ## Safe Neutral
 
@@ -109,6 +111,21 @@ Il risultato viene mostrato nel pannello `PROFILE MEMORY` come:
 
 Anche Drift Guard è soltanto diagnostico: **non cambia automaticamente alcuna soglia del motore**.
 
+## Profile Passport
+
+La v1.5 aggiunge `profile-passport.js`. All'interno della schermata `Personal` compare un pannello che consente di esportare il profilo in un file JSON e di importarlo su un altro browser o dispositivo.
+
+Il pacchetto contiene soltanto:
+
+- scala personale di riferimento;
+- fattore personale del pinch;
+- metadati minimi della calibrazione;
+- preferenze `Precise/Balanced/Fast`, AutoTune e Dwell.
+
+Non vengono esportati Profile Health, Profile Memory, frame, immagini o landmark. Durante l'importazione il file viene validato, i parametri vengono limitati agli intervalli ammessi dal motore e viene assegnato un nuovo `createdAt`, così la validazione cross-session riparte correttamente sul nuovo dispositivo.
+
+Per ragioni di sicurezza del browser, l'apertura del selettore file e il salvataggio del file richiedono un tocco reale sul dispositivo; questa è una limitazione della piattaforma e non del Gesture Engine.
+
 ## AutoTune
 
 Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Con un profilo personale attivo, la scala di riferimento viene sostituita con quella misurata durante la calibrazione. AutoTune può essere disattivato e la preferenza viene salvata localmente.
@@ -123,8 +140,8 @@ Dalla v1.4 il service worker applica il fallback HTML soltanto alle navigazioni 
 
 ## Privacy
 
-Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale, la sintesi Profile Health e lo storico Profile Memory sono conservati soltanto nel browser (`localStorage`/`sessionStorage`).
+Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale, la sintesi Profile Health e lo storico Profile Memory sono conservati soltanto nel browser (`localStorage`/`sessionStorage`). Profile Passport trasferisce soltanto parametri numerici del profilo e preferenze applicative.
 
 ## Roadmap
 
-Confronto tra sessioni e dispositivi, recovery robusta quando la mano esce dall'inquadratura, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Recovery robusta quando la mano esce dall'inquadratura, confronto del profilo dopo importazione su più dispositivi, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
