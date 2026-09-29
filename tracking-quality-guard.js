@@ -3,8 +3,9 @@ if(typeof engine==='undefined')return;
 const $=s=>document.querySelector(s);
 const baseProcess=engine.process.bind(engine);
 let badFrames=0,goodFrames=0,guarding=false,lastCenter=null,lastRaw=0,triggers=0,hideTimer=0;
-const BAD_FRAMES=4,GOOD_CONFIRM=2,DIST_MIN=.50,DIST_MAX=1.80,EDGE_LIMIT=8;
+const BAD_FRAMES=6,LOW_LIGHT_BAD_FRAMES=9,GOOD_CONFIRM=3,DIST_MIN=.47,DIST_MAX=1.88,EDGE_LIMIT=10;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function lowLight(){const s=window.AirLightMonitor?.state;return!!(s&&s.dim)}
 function ensureUi(){
  if(!$('#trackingGuardBadge')){const el=document.createElement('div');el.id='trackingGuardBadge';el.hidden=true;el.innerHTML='<span>TRACKING QUALITY</span><b id="trackingGuardName">READY</b><small id="trackingGuardHint">—</small><div><i id="trackingGuardBar"></i></div>';document.body.appendChild(el)}
  if(!$('#trackingGuardStyle')){const st=document.createElement('style');st.id='trackingGuardStyle';st.textContent='#trackingGuardBadge{position:fixed;left:50%;top:205px;transform:translateX(-50%);width:min(78vw,260px);padding:8px 11px;border:1px solid #ffd27a44;border-radius:13px;background:#071018e8;backdrop-filter:blur(10px);z-index:29;text-align:center;box-shadow:0 0 24px #06101988}#trackingGuardBadge[hidden]{display:none}#trackingGuardBadge span,#trackingGuardBadge small{display:block;font-size:6px;letter-spacing:.13em;color:#71818a}#trackingGuardBadge b{display:block;margin:3px 0;font-size:9px;letter-spacing:.1em;color:#ffd27a}#trackingGuardBadge div{height:2px;margin-top:5px;background:#ffffff10;border-radius:3px;overflow:hidden}#trackingGuardBadge i{display:block;height:100%;width:0;background:#ffd27a;box-shadow:0 0 7px #ffd27a;transition:width .12s}';document.head.appendChild(st)}
@@ -13,14 +14,15 @@ function show(name,hint='',progress=0,linger=0){ensureUi();clearTimeout(hideTime
 function hide(delay=0){ensureUi();clearTimeout(hideTimer);const box=$('#trackingGuardBadge');if(!box)return;if(delay)hideTimer=setTimeout(()=>{box.hidden=true},delay);else box.hidden=true}
 function centerOf(l){return engine.palmCenter?engine.palmCenter(l):{x:(l[0].x+l[9].x)/2,y:(l[0].y+l[9].y)/2}}
 function inspect(l){
- const raw=engine.dist(l[0],l[9]),ref=Math.max(.001,Number(engine.refScale)||.18),ratio=raw/ref,center=centerOf(l);
+ const raw=engine.dist(l[0],l[9]),ref=Math.max(.001,Number(engine.refScale)||.18),ratio=raw/ref,center=centerOf(l),dim=lowLight();
  const move=lastCenter?Math.hypot(center.x-lastCenter.x,center.y-lastCenter.y):0,scaleJump=lastRaw?Math.abs(raw-lastRaw)/Math.max(lastRaw,.001):0;
- let edge=0;for(const p of l){if(!p)continue;if(p.x<.012||p.x>.988||p.y<.012||p.y>.988)edge++}
+ let edge=0;for(const p of l){if(!p)continue;if(p.x<.010||p.x>.990||p.y<.010||p.y>.990)edge++}
  const distanceBad=!Number.isFinite(ratio)||ratio<DIST_MIN||ratio>DIST_MAX;
- const discontinuity=(move>.22&&scaleJump>.25)||scaleJump>.60;
+ const moveLimit=dim?.30:.26,jumpPair=dim?.40:.34,jumpHard=dim?.90:.80;
+ const discontinuity=(move>moveLimit&&scaleJump>jumpPair)||scaleJump>jumpHard;
  const clipped=edge>=EDGE_LIMIT;
- let reason='';if(distanceBad)reason=ratio<DIST_MIN?'MANO TROPPO LONTANA':'MANO TROPPO VICINA';else if(clipped)reason='MANO FUORI INQUADRATURA';else if(discontinuity)reason='TRACKING INSTABILE';
- return{bad:distanceBad||clipped||discontinuity,reason,ratio,raw,center,move,scaleJump,edge};
+ let reason='';if(distanceBad)reason=ratio<DIST_MIN?'MANO TROPPO LONTANA':'MANO TROPPO VICINA';else if(clipped)reason='MANO FUORI INQUADRATURA';else if(discontinuity)reason=dim?'LUCE BASSA · TRACKING INSTABILE':'TRACKING INSTABILE';
+ return{bad:distanceBad||clipped||discontinuity,reason,ratio,raw,center,move,scaleJump,edge,dim};
 }
 function softReset(reason='tracking-quality'){
  const hadScroll=!!(engine.scrollActive||engine.scrollAt);
@@ -37,12 +39,12 @@ function triggerGuard(info){
 engine.process=function(l){
  if(guarding)return baseProcess(l);
  if(typeof calibrator!=='undefined'&&calibrator?.active){badFrames=0;goodFrames=0;lastCenter=null;lastRaw=0;hide();return baseProcess(l)}
- const info=inspect(l);
+ const info=inspect(l),needed=info.dim?LOW_LIGHT_BAD_FRAMES:BAD_FRAMES,warnAt=info.dim?4:3;
  if(info.bad){
   badFrames++;goodFrames=0;softReset('tracking-warning');
-  if(badFrames>=2)show('QUALITY CHECK',info.reason,clamp(badFrames/BAD_FRAMES,0,1));
+  if(badFrames>=warnAt)show('QUALITY CHECK',info.reason,clamp(badFrames/needed,0,1));
   lastCenter=info.center;lastRaw=info.raw;
-  if(badFrames>=BAD_FRAMES){const handed=triggerGuard(info);if(handed)return baseProcess(l)}
+  if(badFrames>=needed){const handed=triggerGuard(info);if(handed)return baseProcess(l)}
   return;
  }
  if(badFrames>0){
