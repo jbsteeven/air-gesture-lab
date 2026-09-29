@@ -18,7 +18,7 @@ function inspect(l){
  const move=lastCenter?Math.hypot(center.x-lastCenter.x,center.y-lastCenter.y):0,scaleJump=lastRaw?Math.abs(raw-lastRaw)/Math.max(lastRaw,.001):0;
  let edge=0;for(const p of l){if(!p)continue;if(p.x<.010||p.x>.990||p.y<.010||p.y>.990)edge++}
  const distanceBad=!Number.isFinite(ratio)||ratio<DIST_MIN||ratio>DIST_MAX;
- const moveLimit=dim?.30:.26,jumpPair=dim?.40:.34,jumpHard=dim?.90:.80;
+ const moveLimit=dim ? .30 : .26,jumpPair=dim ? .40 : .34,jumpHard=dim ? .90 : .80;
  const discontinuity=(move>moveLimit&&scaleJump>jumpPair)||scaleJump>jumpHard;
  const clipped=edge>=EDGE_LIMIT;
  let reason='';if(distanceBad)reason=ratio<DIST_MIN?'MANO TROPPO LONTANA':'MANO TROPPO VICINA';else if(clipped)reason='MANO FUORI INQUADRATURA';else if(discontinuity)reason=dim?'LUCE BASSA · TRACKING INSTABILE':'TRACKING INSTABILE';
