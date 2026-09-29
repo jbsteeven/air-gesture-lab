@@ -22,6 +22,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.3** — Profile Memory: memoria locale delle ultime sessioni validate per distinguere una variazione occasionale da una deriva persistente del profilo.
 - **v1.4** — Drift Guard: analisi del trend cross-session per distinguere profilo centrato, deriva progressiva e spostamento persistente, senza modificare il Gesture Engine.
 - **v1.5** — Profile Passport: esportazione/importazione portabile del profilo personale e delle preferenze essenziali tra dispositivi, senza trasferire immagini, frame o landmark.
+- **v1.5.1** — Personal Controls hotfix: la schermata Personal non avvia più automaticamente la calibrazione, introduce un contesto dedicato e aggiunge selezione con pinch oppure hold assistito per i comandi di gestione.
 
 ## Architettura
 
@@ -30,13 +31,14 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 Componenti principali:
 
 - `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`), gestisce Safe Neutral e applica opzionalmente un profilo personale.
-- `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `practice`, `calibration`, `locked`).
+- `command-router.js` assegna a ogni evento un significato in base al contesto (`workspace`, `detail`, `practice`, `calibration`, `personal`, `locked`).
 - `session-metrics.js` osserva la sessione e produce indicatori diagnostici senza intervenire sui comandi.
 - `personal-calibration.js` esegue una procedura guidata in due passaggi e restituisce i parametri personali da applicare al motore.
 - `profile-health.js` confronta nel tempo l'uso reale con il profilo personale e produce un indicatore di coerenza cross-session senza cambiare autonomamente il Gesture Engine.
 - `profile-memory.js` conserva una sintesi delle ultime sessioni validate e ne calcola l'andamento storico senza modificare le soglie del motore.
 - `drift-monitor.js` analizza lo storico già disponibile e calcola tendenza della scala, variazione della qualità e scostamento persistente rispetto al profilo personale.
 - `profile-passport.js` esporta/importa il profilo personale in un formato JSON validato e riapplica in modo controllato le preferenze essenziali.
+- `personal-controls.js` separa la gestione del profilo dalla calibrazione e fornisce un'alternativa hold al pinch senza modificare le soglie del Gesture Engine.
 
 ## Safe Neutral
 
@@ -65,7 +67,25 @@ La calibrazione misura:
 1. la scala media della mano nella distanza d'uso naturale;
 2. tre pinch completi, da cui ricava un piccolo fattore personale per la soglia thumb-index.
 
-I valori sono limitati a un intervallo sicuro e vengono salvati in `localStorage` come `air_personal`. Alla sessione successiva vengono applicati automaticamente insieme ad AutoTune. Aprendo nuovamente `Personal` si esegue una nuova calibrazione; se si esce prima della fine, il profilo precedente rimane invariato.
+I valori sono limitati a un intervallo sicuro e vengono salvati in `localStorage` come `air_personal`. Alla sessione successiva vengono applicati automaticamente insieme ad AutoTune.
+
+Dalla v1.5.1 l'apertura di `Personal` non avvia più automaticamente la calibrazione: viene mostrata una modalità di gestione separata e la nuova calibrazione parte soltanto tramite il comando `AVVIA CALIBRAZIONE`.
+
+## Personal Controls
+
+La v1.5.1 risolve l'interferenza tra i pinch usati come comandi e i pinch usati come campioni di calibrazione.
+
+Nel nuovo contesto `personal`:
+
+- il pinch può selezionare i comandi di gestione;
+- il palmo mantenuto torna al Workspace;
+- lo scroll a due dita resta disponibile;
+- il pugno non attiva il Safety Lock, così la gestione del profilo è più sicura;
+- i comandi principali possono essere attivati anche mantenendo il cursore sul controllo per circa due secondi, senza dipendere dal riconoscimento del pinch.
+
+`AVVIA CALIBRAZIONE` passa temporaneamente al contesto `calibration`, dove i pinch vengono osservati come campioni e non come comandi UI. Al termine della procedura il contesto `personal` viene ripristinato automaticamente.
+
+L'esportazione JSON può essere preparata tramite pinch/hold o tocco. L'importazione continua a richiedere un tocco reale perché il file picker del browser richiede un'attivazione utente attendibile.
 
 ## Profile Health
 
@@ -124,7 +144,7 @@ Il pacchetto contiene soltanto:
 
 Non vengono esportati Profile Health, Profile Memory, frame, immagini o landmark. Durante l'importazione il file viene validato, i parametri vengono limitati agli intervalli ammessi dal motore e viene assegnato un nuovo `createdAt`, così la validazione cross-session riparte correttamente sul nuovo dispositivo.
 
-Per ragioni di sicurezza del browser, l'apertura del selettore file e il salvataggio del file richiedono un tocco reale sul dispositivo; questa è una limitazione della piattaforma e non del Gesture Engine.
+L'apertura del selettore file richiede un tocco reale sul dispositivo per ragioni di sicurezza del browser.
 
 ## AutoTune
 
