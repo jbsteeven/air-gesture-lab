@@ -23,6 +23,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.4** — Drift Guard: analisi del trend cross-session per distinguere profilo centrato, deriva progressiva e spostamento persistente, senza modificare il Gesture Engine.
 - **v1.5** — Profile Passport: esportazione/importazione portabile del profilo personale e delle preferenze essenziali tra dispositivi, senza trasferire immagini, frame o landmark.
 - **v1.5.1** — Personal Controls hotfix: la schermata Personal non avvia più automaticamente la calibrazione, introduce un contesto dedicato e aggiunge selezione con pinch oppure hold assistito per i comandi di gestione.
+- **v1.6** — Hand Recovery: perdita e riacquisizione della mano gestite con reset degli stati residui, blocco temporaneo dei comandi e ritorno obbligatorio a una posa neutrale stabile.
 
 ## Architettura
 
@@ -39,6 +40,7 @@ Componenti principali:
 - `drift-monitor.js` analizza lo storico già disponibile e calcola tendenza della scala, variazione della qualità e scostamento persistente rispetto al profilo personale.
 - `profile-passport.js` esporta/importa il profilo personale in un formato JSON validato e riapplica in modo controllato le preferenze essenziali.
 - `personal-controls.js` separa la gestione del profilo dalla calibrazione e fornisce un'alternativa hold al pinch senza modificare le soglie del Gesture Engine.
+- `hand-recovery.js` intercetta una perdita reale della mano, neutralizza gli stati interni ancora attivi e richiede una riacquisizione stabile prima di restituire il controllo al motore.
 
 ## Safe Neutral
 
@@ -146,6 +148,24 @@ Non vengono esportati Profile Health, Profile Memory, frame, immagini o landmark
 
 L'apertura del selettore file richiede un tocco reale sul dispositivo per ragioni di sicurezza del browser.
 
+## Hand Recovery
+
+La v1.6 aggiunge un livello di recovery che non cambia le soglie delle gesture già validate.
+
+Quando la mano viene persa dopo che il tracking era attivo, il sistema:
+
+1. azzera history di swipe, pinch pendenti, hold di palmo/pugno e stato dello scroll;
+2. cancella l'intent ancora aperto e disarma temporaneamente i comandi;
+3. interrompe l'accumulo del dwell e azzera il riferimento del puntatore usato nelle metriche;
+4. se la perdita avviene durante Personal Calibration, sospende temporaneamente la raccolta dei campioni;
+5. alla ricomparsa della mano richiede distanza compatibile, posa non riconducibile a palmo/pugno/scroll/pinch e alcuni frame stabili;
+6. riallinea il cursore direttamente alla nuova posizione della mano per evitare salti dovuti alla precedente coordinata;
+7. restituisce il controllo al Gesture Engine ancora disarmato, così è necessario tornare a `NEUTRAL · READY` prima del comando successivo.
+
+Durante questa fase compare un piccolo HUD `HAND RECOVERY` con indicazioni come `MANO PERSA`, `TORNA IN POSIZIONE NEUTRA`, `FERMA LA MANO UN ISTANTE` e `MANO RECUPERATA`.
+
+Il recovery non salva nuovi dati personali e non modifica Profile Passport, Profile Health o Profile Memory.
+
 ## AutoTune
 
 Il motore misura in continuo una scala geometrica della mano dai landmark e la usa per compensare le soglie del pinch. Con un profilo personale attivo, la scala di riferimento viene sostituita con quella misurata durante la calibrazione. AutoTune può essere disattivato e la preferenza viene salvata localmente.
@@ -164,4 +184,4 @@ Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app no
 
 ## Roadmap
 
-Recovery robusta quando la mano esce dall'inquadratura, confronto del profilo dopo importazione su più dispositivi, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Confronto del profilo dopo importazione su più dispositivi, recovery estesa a condizioni di tracking degradato, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
