@@ -24,6 +24,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.5** — Profile Passport: esportazione/importazione portabile del profilo personale e delle preferenze essenziali tra dispositivi, senza trasferire immagini, frame o landmark.
 - **v1.5.1** — Personal Controls hotfix: la schermata Personal non avvia più automaticamente la calibrazione, introduce un contesto dedicato e aggiunge selezione con pinch oppure hold assistito per i comandi di gestione.
 - **v1.6** — Hand Recovery: perdita e riacquisizione della mano gestite con reset degli stati residui, blocco temporaneo dei comandi e ritorno obbligatorio a una posa neutrale stabile.
+- **v1.7** — Transfer Check: verifica passiva del profilo dopo importazione su un nuovo dispositivo, con classificazione `COMPATIBLE`, `ADAPTED` o `RECALIBRATE`, senza cambiare le soglie del motore.
 
 ## Architettura
 
@@ -41,6 +42,7 @@ Componenti principali:
 - `profile-passport.js` esporta/importa il profilo personale in un formato JSON validato e riapplica in modo controllato le preferenze essenziali.
 - `personal-controls.js` separa la gestione del profilo dalla calibrazione e fornisce un'alternativa hold al pinch senza modificare le soglie del Gesture Engine.
 - `hand-recovery.js` intercetta una perdita reale della mano, neutralizza gli stati interni ancora attivi e richiede una riacquisizione stabile prima di restituire il controllo al motore.
+- `transfer-check.js` valida passivamente un profilo importato confrontando la scala d'uso effettiva con la sua calibrazione originale, senza fingerprint del dispositivo e senza auto-modifica dei parametri.
 
 ## Safe Neutral
 
@@ -75,15 +77,7 @@ Dalla v1.5.1 l'apertura di `Personal` non avvia più automaticamente la calibraz
 
 ## Personal Controls
 
-La v1.5.1 risolve l'interferenza tra i pinch usati come comandi e i pinch usati come campioni di calibrazione.
-
-Nel nuovo contesto `personal`:
-
-- il pinch può selezionare i comandi di gestione;
-- il palmo mantenuto torna al Workspace;
-- lo scroll a due dita resta disponibile;
-- il pugno non attiva il Safety Lock, così la gestione del profilo è più sicura;
-- i comandi principali possono essere attivati anche mantenendo il cursore sul controllo per circa due secondi, senza dipendere dal riconoscimento del pinch.
+Nel contesto `personal` il pinch può selezionare i comandi di gestione, il palmo mantenuto torna al Workspace, lo scroll a due dita resta disponibile e il pugno non attiva il Safety Lock. I comandi principali possono essere attivati anche mantenendo il cursore sul controllo per circa due secondi.
 
 `AVVIA CALIBRAZIONE` passa temporaneamente al contesto `calibration`, dove i pinch vengono osservati come campioni e non come comandi UI. Al termine della procedura il contesto `personal` viene ripristinato automaticamente.
 
@@ -91,80 +85,52 @@ L'esportazione JSON può essere preparata tramite pinch/hold o tocco. L'importaz
 
 ## Profile Health
 
-La v1.2 aggiunge una validazione passiva del profilo personale. `profile-health.js` osserva soltanto grandezze già prodotte dal motore e calcola tre aspetti:
-
-- scostamento della scala d'uso rispetto alla calibrazione personale;
-- consistenza della distanza della mano durante la sessione;
-- frequenza con cui AutoTune raggiunge i limiti del proprio intervallo di compensazione.
-
-Dopo un numero minimo di campioni il profilo viene classificato come `VALID`, `ADAPT` o `RECALIBRATE`. Il risultato non modifica automaticamente le soglie: serve come guardrail diagnostico e come indicazione per decidere quando rifare `Personal Calibration`.
+`profile-health.js` osserva soltanto grandezze già prodotte dal motore e valuta scostamento della scala d'uso, consistenza della distanza e frequenza con cui AutoTune raggiunge i limiti del proprio intervallo. Dopo un numero minimo di campioni il profilo viene classificato come `VALID`, `ADAPT` o `RECALIBRATE`. Il risultato non modifica automaticamente le soglie.
 
 Una sintesi della validazione viene salvata in `localStorage` come `air_profile_health`, insieme al numero di sessioni validate. Non vengono salvati landmark, immagini o frame della fotocamera.
 
 ## Profile Memory
 
-La v1.3 aggiunge `profile-memory.js`. Ogni sessione sufficientemente validata aggiorna una sola voce locale identificata tramite `sessionStorage`; ricaricamenti e aggiornamenti della stessa sessione non generano duplicati. Vengono mantenute al massimo le ultime otto sessioni associate all'attuale profilo personale.
+Ogni sessione sufficientemente validata aggiorna una sola voce locale identificata tramite `sessionStorage`; ricaricamenti e aggiornamenti della stessa sessione non generano duplicati. Vengono mantenute al massimo le ultime otto sessioni associate all'attuale profilo personale.
 
-Il pannello `PROFILE MEMORY` mostra fino a sei barre storiche e classifica l'andamento come:
-
-- `LEARNING` — è disponibile una sola sessione e non c'è ancora uno storico sufficiente;
-- `STABLE` — il profilo è rimasto coerente nel tempo;
-- `WATCH` — esiste uno scostamento moderato da osservare nelle sessioni successive;
-- `REVIEW` — lo storico suggerisce di valutare una nuova calibrazione.
-
-La memoria storica viene azzerata automaticamente quando viene creato un nuovo profilo personale. Anche in questa fase nessuna soglia viene cambiata automaticamente: la memoria serve soltanto a distinguere un episodio isolato da una deriva ripetuta.
+Il pannello `PROFILE MEMORY` classifica l'andamento come `LEARNING`, `STABLE`, `WATCH` o `REVIEW`. La memoria storica viene azzerata automaticamente quando viene creato un nuovo profilo personale.
 
 ## Drift Guard
 
-La v1.4 aggiunge `drift-monitor.js`, che usa esclusivamente lo storico già registrato in `air_profile_memory` e non osserva direttamente i frame o i landmark.
+`drift-monitor.js` usa esclusivamente lo storico già registrato in `air_profile_memory`. Dopo almeno tre sessioni validate calcola trend della scala d'uso, trend della qualità, scostamento recente e persistenza di uno spostamento.
 
-Dopo almeno tre sessioni validate calcola:
-
-- trend della scala d'uso da una sessione alla successiva;
-- trend della qualità del profilo;
-- scostamento recente rispetto alla scala personale di riferimento;
-- persistenza di uno spostamento nelle ultime sessioni.
-
-Il risultato viene mostrato nel pannello `PROFILE MEMORY` come:
-
-- `CENTERED` / `CENTRATO` — storico coerente, senza deriva significativa;
-- `DRIFTING` / `IN OSSERVAZIONE` — è presente una tendenza da monitorare;
-- `SHIFTED` / `SPOSTATO` — lo scostamento appare persistente e può essere opportuno rifare la calibrazione.
-
-Anche Drift Guard è soltanto diagnostico: **non cambia automaticamente alcuna soglia del motore**.
+Il risultato viene mostrato come `CENTERED`, `DRIFTING` o `SHIFTED`. Anche Drift Guard è soltanto diagnostico e non cambia automaticamente alcuna soglia del motore.
 
 ## Profile Passport
 
-La v1.5 aggiunge `profile-passport.js`. All'interno della schermata `Personal` compare un pannello che consente di esportare il profilo in un file JSON e di importarlo su un altro browser o dispositivo.
+`profile-passport.js` consente di esportare il profilo in un file JSON e di importarlo su un altro browser o dispositivo. Il pacchetto contiene scala personale di riferimento, fattore personale del pinch, metadati minimi della calibrazione e preferenze `Precise/Balanced/Fast`, AutoTune e Dwell.
 
-Il pacchetto contiene soltanto:
-
-- scala personale di riferimento;
-- fattore personale del pinch;
-- metadati minimi della calibrazione;
-- preferenze `Precise/Balanced/Fast`, AutoTune e Dwell.
-
-Non vengono esportati Profile Health, Profile Memory, frame, immagini o landmark. Durante l'importazione il file viene validato, i parametri vengono limitati agli intervalli ammessi dal motore e viene assegnato un nuovo `createdAt`, così la validazione cross-session riparte correttamente sul nuovo dispositivo.
-
-L'apertura del selettore file richiede un tocco reale sul dispositivo per ragioni di sicurezza del browser.
+Non vengono esportati Profile Health, Profile Memory, frame, immagini o landmark. Durante l'importazione viene assegnato un nuovo `createdAt`, così la validazione riparte correttamente sul dispositivo ricevente. L'apertura del selettore file richiede un tocco reale per ragioni di sicurezza del browser.
 
 ## Hand Recovery
 
-La v1.6 aggiunge un livello di recovery che non cambia le soglie delle gesture già validate.
+Quando la mano viene persa dopo che il tracking era attivo, il sistema azzera history di swipe, pinch pendenti, hold di palmo/pugno e stato dello scroll; cancella l'intent ancora aperto; interrompe dwell e riferimenti del puntatore; sospende eventuali campioni di calibrazione e richiede una breve riacquisizione neutrale e stabile.
 
-Quando la mano viene persa dopo che il tracking era attivo, il sistema:
+Durante questa fase compare un HUD `HAND RECOVERY`. Il recovery non salva nuovi dati personali e non modifica Profile Passport, Profile Health o Profile Memory.
 
-1. azzera history di swipe, pinch pendenti, hold di palmo/pugno e stato dello scroll;
-2. cancella l'intent ancora aperto e disarma temporaneamente i comandi;
-3. interrompe l'accumulo del dwell e azzera il riferimento del puntatore usato nelle metriche;
-4. se la perdita avviene durante Personal Calibration, sospende temporaneamente la raccolta dei campioni;
-5. alla ricomparsa della mano richiede distanza compatibile, posa non riconducibile a palmo/pugno/scroll/pinch e alcuni frame stabili;
-6. riallinea il cursore direttamente alla nuova posizione della mano per evitare salti dovuti alla precedente coordinata;
-7. restituisce il controllo al Gesture Engine ancora disarmato, così è necessario tornare a `NEUTRAL · READY` prima del comando successivo.
+## Transfer Check
 
-Durante questa fase compare un piccolo HUD `HAND RECOVERY` con indicazioni come `MANO PERSA`, `TORNA IN POSIZIONE NEUTRA`, `FERMA LA MANO UN ISTANTE` e `MANO RECUPERATA`.
+La v1.7 aggiunge `transfer-check.js`. La verifica si attiva soltanto quando il profilo corrente proviene da un'importazione Profile Passport (`importedAt`). Un profilo calibrato localmente viene mostrato come `LOCAL` e non viene sottoposto al test.
 
-Il recovery non salva nuovi dati personali e non modifica Profile Passport, Profile Health o Profile Memory.
+Il controllo raccoglie passivamente almeno 90 campioni mentre la mano è in posa neutrale e non è in corso una calibrazione o un Hand Recovery. Vengono valutati:
+
+- rapporto fra scala della mano osservata e scala di riferimento importata;
+- dispersione della scala durante il test;
+- frequenza con cui AutoTune raggiunge i limiti di compensazione;
+- qualità geometrica media già prodotta dal Gesture Engine.
+
+Al termine il profilo viene classificato come:
+
+- `COMPATIBLE` — il profilo trasferito è coerente con il dispositivo corrente;
+- `ADAPTED` — il profilo resta utilizzabile ma AutoTune sta compensando una differenza misurabile;
+- `RECALIBRATE` — lo scostamento è elevato e viene consigliata una nuova Personal Calibration sul dispositivo corrente.
+
+Transfer Check è deliberatamente diagnostico: non modifica automaticamente soglie, `refScale` o `pinchFactor`. Il risultato viene conservato localmente in `air_transfer_check` ed è invalidato automaticamente quando viene importato o creato un nuovo profilo.
 
 ## AutoTune
 
@@ -176,12 +142,12 @@ La telemetria locale misura qualità media del tracking, stabilità del puntator
 
 ## PWA e cache
 
-Dalla v1.4 il service worker applica il fallback HTML soltanto alle navigazioni same-origin. Le richieste esterne, come gli asset MediaPipe caricati da jsDelivr, non vengono più sostituite erroneamente con `index.html` in caso di errore di rete. Il manifest include `id`, `scope`, orientamento portrait e lingua italiana.
+Il service worker applica il fallback HTML soltanto alle navigazioni same-origin. Le richieste esterne, come gli asset MediaPipe caricati da jsDelivr, non vengono sostituite erroneamente con `index.html` in caso di errore di rete. Il manifest include `id`, `scope`, orientamento portrait e lingua italiana.
 
 ## Privacy
 
-Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale, la sintesi Profile Health e lo storico Profile Memory sono conservati soltanto nel browser (`localStorage`/`sessionStorage`). Profile Passport trasferisce soltanto parametri numerici del profilo e preferenze applicative.
+Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame della fotocamera; il tracking e la logica gesture vengono elaborati nel browser. Le librerie MediaPipe vengono caricate da jsDelivr. Il profilo personale, Profile Health, Profile Memory e Transfer Check sono conservati soltanto nel browser. Profile Passport trasferisce soltanto parametri numerici del profilo e preferenze applicative; Transfer Check non usa identificatori o fingerprint del dispositivo.
 
 ## Roadmap
 
-Confronto del profilo dopo importazione su più dispositivi, recovery estesa a condizioni di tracking degradato, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
+Recovery estesa a condizioni di tracking degradato, componenti gesture-native riutilizzabili e pacchetto SDK/documentazione per integrare il motore in altre PWA.
