@@ -1,0 +1,9 @@
+export class AirCommandRouter{
+constructor(){this.context='workspace';this.listeners={};this.maps={workspace:{pinch:'select',swipe:'navigate',palm:'ignore',fist:'lock',scroll:'ignore'},detail:{pinch:'confirm',swipe:'ignore',palm:'back',fist:'lock',scroll:'scroll'},practice:{pinch:'practice',swipe:'practice',scroll:'practice',fist:'practice',palm:'back'},calibration:{pinch:'practice',swipe:'practice',scroll:'practice',fist:'practice',palm:'back'},personal:{pinch:'personalSelect',swipe:'ignore',palm:'back',fist:'ignore',scroll:'scroll'},locked:{fist:'unlock',pinch:'ignore',swipe:'ignore',palm:'ignore',scroll:'ignore'}}}
+on(n,f){(this.listeners[n]??=[]).push(f);return this}
+emit(n,d){(this.listeners[n]||[]).forEach(f=>f(d))}
+setContext(name){if(!this.maps[name])return false;this.context=name;this.emit('context',{name});return true}
+route(g){const command=this.maps[this.context][g.type]||'ignore';const payload={command,context:this.context,gesture:g};this.emit('command',payload);return payload}
+}
+
+export default AirCommandRouter;
