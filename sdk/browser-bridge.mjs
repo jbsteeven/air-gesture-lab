@@ -1,7 +1,7 @@
-import {VERSION,AirGestureEngine,AirCommandRouter,createGestureRuntime,getBrowserSDK,whenBrowserSDK} from './index.mjs';
+import {VERSION,AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,createGestureRuntime,createRobustGestureRuntime,getBrowserSDK,whenBrowserSDK} from './index.mjs';
 
-const api=Object.freeze({VERSION,AirGestureEngine,AirCommandRouter,createGestureRuntime,getBrowserSDK,whenBrowserSDK});
+const api=Object.freeze({VERSION,AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,createGestureRuntime,createRobustGestureRuntime,getBrowserSDK,whenBrowserSDK});
 globalThis.AirGestureESM=api;
-try{globalThis.dispatchEvent(new CustomEvent('airgesture:esmready',{detail:{version:VERSION}}))}catch(e){}
+try{globalThis.dispatchEvent(new CustomEvent('airgesture:esmready',{detail:{version:VERSION,robustness:true}}))}catch(e){}
 
 export default api;
