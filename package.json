@@ -1,0 +1,22 @@
+{
+  "name": "air-gesture-lab-sdk",
+  "version": "2.1.0",
+  "description": "Gesture-native browser core extracted from Air Gesture Lab.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./sdk/index.mjs",
+    "./core/gesture-engine": "./sdk/core/gesture-engine.mjs",
+    "./core/command-router": "./sdk/core/command-router.mjs",
+    "./browser-facade": "./air-gesture-sdk.js"
+  },
+  "files": [
+    "sdk",
+    "air-gesture-sdk.js",
+    "SDK.md"
+  ],
+  "sideEffects": [
+    "./air-gesture-sdk.js",
+    "./sdk/browser-bridge.mjs"
+  ]
+}
