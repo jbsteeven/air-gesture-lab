@@ -1,6 +1,6 @@
 (()=>{
 if(typeof engine==='undefined'||typeof router==='undefined')return;
-const VERSION='2.2.0';
+const VERSION='2.3.0';
 const events=new Map();
 let enabled=true;
 const originalRoute=router.route.bind(router);
