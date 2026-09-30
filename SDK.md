@@ -54,7 +54,7 @@ offState();
 
 Eventi generici disponibili:
 
-`gesture`, `pointer`, `pose`, `intent`, `tracking`, `command`, `context`, `robustness`, `enabled`, `profile`, `adaptive`, `recovery`, `qualityguard`.
+`gesture`, `pointer`, `pose`, `intent`, `tracking`, `command`, `context`, `robustness`, `enabled`, `profile`, `adaptive`, `calibration`, `recovery`, `qualityguard`.
 
 Ogni evento viene anche pubblicato sul browser con namespace `airgesture:*`, per esempio:
 
