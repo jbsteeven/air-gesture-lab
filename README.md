@@ -4,37 +4,15 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 
 ## Stato del progetto
 
-- **v0.1** — proof of concept: hand tracking, cursore, pinch, swipe, palmo.
-- **v0.2** — calibrazione, stabilizzazione, cooldown e feedback delle gesture.
-- **v0.3** — mini-app touchless completa con Workspace e moduli.
-- **v0.4** — motore riutilizzabile `gesture-engine.js`, telemetria e scroll verticale.
-- **v0.5** — Intent Engine con profili Precise/Balanced/Fast.
-- **v0.6** — dwell selection e Safety Lock.
-- **v0.7** — Smart Dwell + Command Router.
-- **v0.8** — AutoTune della scala della mano.
-- **v0.9** — Session Metrics.
-- **v0.9.1** — Guarded Poses.
-- **v0.9.2** — Safe Neutral.
-- **v1.0** — Practice Mode.
-- **v1.1** — Personal Calibration.
-- **v1.2** — Profile Health.
-- **v1.3** — Profile Memory.
-- **v1.4** — Drift Guard.
-- **v1.5** — Profile Passport.
-- **v1.5.1** — Personal Controls hotfix.
-- **v1.6** — Hand Recovery.
-- **v1.7** — Transfer Check.
-- **v1.7.1** — Personal Freeze Fix.
-- **v1.8** — Tracking Quality Guard.
-- **v1.8.1** — Low Light Resilience.
-- **v1.9** — Robustness Core.
+- **v0.1–v1.9** — evoluzione del motore gesture, Safe Neutral, Personal Calibration, Profile Passport, Hand Recovery, Tracking Quality Guard, Low Light Resilience e Robustness Core.
 - **v2.0** — Gesture SDK Core: facade pubblica `window.AirGestureSDK`.
 - **v2.1** — ESM Package Core: Gesture Engine e Command Router diventano moduli ES importabili.
 - **v2.2** — Modular Robustness SDK: Hand Recovery, Tracking Quality Guard, Low Light Monitor e Robustness Core diventano moduli ESM headless riutilizzabili.
+- **v2.3** — External Integration Demo & Contract Tests: una seconda PWA usa direttamente il package ESM e GitHub Actions verifica automaticamente il contratto SDK 2.x.
 
 ## Architettura
 
-Runtime PWA:
+Runtime PWA principale:
 
 `Front Camera -> MediaPipe Hands -> AirGestureEngine -> Guardrails -> AirRobustnessCore -> AirCommandRouter -> AirGestureSDK -> Application UI`
 
@@ -52,13 +30,13 @@ Package ESM:
 - `robustness-core.js` / `sdk/robustness/robustness-core.mjs` — stato operativo unificato.
 - `air-gesture-sdk.js` — facade browser completa.
 - `sdk/index.mjs` — entrypoint ESM pubblico.
-- `sdk/browser-bridge.mjs` — bridge ESM per il browser.
+- `sdk/browser-bridge.mjs` — bridge ESM della demo principale.
 
 ## Safe Neutral
 
 I comandi discreti richiedono prima una breve posizione neutrale. Dopo un comando il motore torna disarmato finché non viene nuovamente raggiunto `NEUTRAL · READY`.
 
-Palmo e pugno hanno hold lunghi; lo swipe richiede movimento orizzontale netto; lo scroll usa indice + medio distesi.
+Le soglie gesture validate non vengono modificate dai moduli di robustezza.
 
 ## Low Light Resilience
 
@@ -68,14 +46,14 @@ La demo usa `minDetectionConfidence = 0.66`, `minTrackingConfidence = 0.64`, gra
 
 Gli stati operativi sono `NO HAND`, `RECOVERING`, `DEGRADED`, `LOW LIGHT` e `READY`.
 
-Il runtime browser continua a esporre `window.AirRobustnessCore`; il package ESM v2.2 espone anche `AirRobustnessCore` come classe indipendente dal DOM.
+Il runtime browser espone `window.AirRobustnessCore`; il package ESM espone anche `AirRobustnessCore` come classe indipendente dal DOM.
 
 ## Gesture SDK Browser
 
 ```js
 const sdk = window.AirGestureSDK;
 
-sdk.VERSION;
+sdk.VERSION; // 2.3.0
 sdk.snapshot();
 sdk.enable();
 sdk.disable();
@@ -85,9 +63,7 @@ sdk.setContext('workspace');
 sdk.onGesture(g => console.log(g));
 ```
 
-Gli eventi vengono pubblicati anche come `CustomEvent` con namespace `airgesture:*`.
-
-## ESM Package v2.2
+## ESM Package v2.3
 
 ```js
 import {
@@ -115,7 +91,6 @@ const runtime = createRobustGestureRuntime({
 
 runtime.on('gesture', g => console.log(g));
 runtime.on('robustness', s => console.log(s.state, s.commandSafe));
-
 runtime.processLandmarks(landmarks);
 ```
 
@@ -125,7 +100,7 @@ Quando il detector non vede più la mano:
 runtime.markHandLost();
 ```
 
-Per alimentare il monitor luce da una PWA esterna:
+Per il monitor luce:
 
 ```js
 runtime.updateLuminance(58);
@@ -133,19 +108,41 @@ runtime.updateLuminance(58);
 runtime.updateImageData(imageData.data);
 ```
 
-Il package ESM non dipende dalla UI della demo e non modifica le soglie gesture validate.
+## External Integration Demo
+
+`examples/external-pwa/` è una seconda mini-PWA indipendente dall'interfaccia principale. Importa direttamente:
+
+```js
+import { VERSION, createRobustGestureRuntime } from '../../sdk/index.mjs';
+```
+
+La demo usa MediaPipe soltanto come detector di landmark; pointer, gesture, routing e Robustness provengono dal package ESM. Ha un proprio manifest e service worker, quindi costituisce un test reale di integrazione esterna su GitHub Pages.
+
+## Contract Tests
+
+`tests/sdk-contract.test.mjs` usa il test runner nativo di Node per verificare:
+
+- versione e caricamento dell'entrypoint ESM;
+- command routing;
+- classificazione Low Light;
+- priorità degli stati Robustness;
+- attivazione del Quality Guard e hand-off a Recovery.
+
+Esecuzione locale:
+
+```bash
+npm test
+```
+
+La workflow `.github/workflows/sdk-contract.yml` esegue gli stessi test con Node 20 su GitHub Actions a ogni modifica di `sdk/**`, `tests/**` o `package.json`.
 
 ## Package metadata
 
-`package.json` espone gli entrypoint core e robustness. Il package resta `private: true`: è pronto per test e distribuzione controllata, ma non viene pubblicato automaticamente su registry esterni.
+`package.json` espone gli entrypoint core e robustness ed è alla versione `2.3.0`. Il package resta `private: true`: è pronto per test e distribuzione controllata, ma non viene pubblicato automaticamente su registry esterni.
 
 ## Personal Calibration e Profile Passport
 
 La calibrazione misura scala della mano e geometria del pinch e salva i valori soltanto nel browser. Profile Passport consente di esportare/importare scala personale, fattore del pinch e preferenze essenziali. Non trasferisce frame, immagini o landmark.
-
-## Transfer Check
-
-Transfer Check si attiva sui profili importati e classifica il risultato come `COMPATIBLE`, `ADAPTED` o `RECALIBRATE` senza modificare automaticamente il profilo.
 
 ## Privacy
 
@@ -157,4 +154,4 @@ La documentazione API completa è in `SDK.md`.
 
 ## Roadmap
 
-Esempi di integrazione esterna, test automatici del contratto SDK 2.x, separazione dei moduli applicativi rimanenti e successiva preparazione di una distribuzione package pubblicabile.
+Stabilizzazione del contratto SDK 2.x, test di integrazione più estesi, separazione dei moduli applicativi rimanenti e successiva preparazione di una distribuzione package pubblicabile.
