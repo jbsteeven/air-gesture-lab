@@ -1,0 +1,12 @@
+{
+  "name": "Air Gesture External PWA",
+  "short_name": "Air SDK Demo",
+  "description": "Standalone integration demo for Air Gesture SDK.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071018",
+  "theme_color": "#071018",
+  "orientation": "portrait",
+  "lang": "it"
+}
