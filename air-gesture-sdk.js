@@ -1,6 +1,6 @@
 (()=>{
 if(typeof engine==='undefined'||typeof router==='undefined')return;
-const VERSION='2.0.0';
+const VERSION='2.1.0';
 const events=new Map();
 let enabled=true;
 const originalRoute=router.route.bind(router);
@@ -13,7 +13,7 @@ function once(name,fn){if(typeof fn!=='function')return()=>{};let off=()=>{};off
 function safePersonal(){const p=typeof personalProfile!=='undefined'&&personalProfile?personalProfile:null;if(!p)return null;return{refScale:Number(p.refScale)||null,pinchFactor:Number(p.pinchFactor)||null,pinchRatio:Number.isFinite(Number(p.pinchRatio))?Number(p.pinchRatio):null,createdAt:Number(p.createdAt)||0,importedAt:Number(p.importedAt)||0}}
 function robustness(){return window.AirRobustnessCore?.snapshot?.()||{state:'READY',commandSafe:true}}
 function metricsSnapshot(){try{return metrics?.snapshot?.()||null}catch(e){return null}}
-function snapshot(){return{sdkVersion:VERSION,enabled,context:router.context,profile:engine.profile,adaptiveScale:!!engine.adaptiveScale,personal:safePersonal(),robustness:robustness(),metrics:metricsSnapshot(),capabilities:{pointer:true,pinch:true,swipe:true,palm:true,fist:true,scroll:true,personalProfile:true,profilePassport:!!window.AirProfilePassport,robustnessCore:!!window.AirRobustnessCore,handRecovery:!!window.AirHandRecovery,qualityGuard:!!window.AirTrackingQualityGuard,lowLight:!!window.AirLightMonitor}}}
+function snapshot(){return{sdkVersion:VERSION,enabled,context:router.context,profile:engine.profile,adaptiveScale:!!engine.adaptiveScale,personal:safePersonal(),robustness:robustness(),metrics:metricsSnapshot(),capabilities:{pointer:true,pinch:true,swipe:true,palm:true,fist:true,scroll:true,personalProfile:true,profilePassport:!!window.AirProfilePassport,robustnessCore:!!window.AirRobustnessCore,handRecovery:!!window.AirHandRecovery,qualityGuard:!!window.AirTrackingQualityGuard,lowLight:!!window.AirLightMonitor,esmPackage:!!window.AirGestureESM}}}
 function enable(){if(enabled)return snapshot();enabled=true;emit('enabled',{enabled:true});return snapshot()}
 function disable(){if(!enabled)return snapshot();enabled=false;if(typeof engine.clearIntent==='function')engine.clearIntent();if(typeof engine.disarm==='function')engine.disarm();if(typeof resetDwell==='function')resetDwell(false);emit('enabled',{enabled:false});return snapshot()}
 function setProfile(name){const ok=engine.setProfile(name);if(ok){try{localStorage.setItem('air_profile',name)}catch(e){}}return ok}
