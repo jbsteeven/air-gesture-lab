@@ -4,7 +4,7 @@ const VERSION='2.0.0';
 const events=new Map();
 let enabled=true;
 const originalRoute=router.route.bind(router);
-const validEvents=['gesture','pointer','pose','intent','tracking','command','context','robustness','enabled','profile','adaptive','recovery','qualityguard'];
+const validEvents=['gesture','pointer','pose','intent','tracking','command','context','robustness','enabled','profile','adaptive','calibration','recovery','qualityguard'];
 const clone=v=>{if(v==null||typeof v!=='object')return v;try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
 function setFor(name){if(!events.has(name))events.set(name,new Set());return events.get(name)}
 function emit(name,payload){const data=clone(payload);for(const fn of setFor(name)){try{fn(data)}catch(e){}}try{window.dispatchEvent(new CustomEvent('airgesture:'+name,{detail:data}))}catch(e){}}
@@ -16,8 +16,8 @@ function metricsSnapshot(){try{return metrics?.snapshot?.()||null}catch(e){retur
 function snapshot(){return{sdkVersion:VERSION,enabled,context:router.context,profile:engine.profile,adaptiveScale:!!engine.adaptiveScale,personal:safePersonal(),robustness:robustness(),metrics:metricsSnapshot(),capabilities:{pointer:true,pinch:true,swipe:true,palm:true,fist:true,scroll:true,personalProfile:true,profilePassport:!!window.AirProfilePassport,robustnessCore:!!window.AirRobustnessCore,handRecovery:!!window.AirHandRecovery,qualityGuard:!!window.AirTrackingQualityGuard,lowLight:!!window.AirLightMonitor}}}
 function enable(){if(enabled)return snapshot();enabled=true;emit('enabled',{enabled:true});return snapshot()}
 function disable(){if(!enabled)return snapshot();enabled=false;if(typeof engine.clearIntent==='function')engine.clearIntent();if(typeof engine.disarm==='function')engine.disarm();if(typeof resetDwell==='function')resetDwell(false);emit('enabled',{enabled:false});return snapshot()}
-function setProfile(name){const ok=engine.setProfile(name);if(ok){try{localStorage.setItem('air_profile',name)}catch(e){}emit('profile',{name})}return ok}
-function setAdaptiveScale(value){const result=engine.setAdaptiveScale(!!value);try{localStorage.setItem('air_autotune',result?'1':'0')}catch(e){}emit('adaptive',{enabled:result});return result}
+function setProfile(name){const ok=engine.setProfile(name);if(ok){try{localStorage.setItem('air_profile',name)}catch(e){}}return ok}
+function setAdaptiveScale(value){const result=engine.setAdaptiveScale(!!value);try{localStorage.setItem('air_autotune',result?'1':'0')}catch(e){}return result}
 function setPersonalCalibration(profile,{persist=true}={}){if(!profile||!Number.isFinite(Number(profile.refScale))||!Number.isFinite(Number(profile.pinchFactor)))return false;const clean={...profile,refScale:Number(profile.refScale),pinchFactor:Number(profile.pinchFactor),createdAt:Number(profile.createdAt)||Date.now()};engine.setPersonalCalibration(clean);if(typeof personalProfile!=='undefined')personalProfile=clean;if(persist){try{localStorage.setItem('air_personal',JSON.stringify(clean))}catch(e){return false}}return true}
 function exportProfilePacket(){try{return window.AirProfilePassport?.packet?.()||null}catch(e){return null}}
 function importProfilePacket(packet){if(!window.AirProfilePassport?.importPacket)throw new Error('Profile Passport non disponibile');return window.AirProfilePassport.importPacket(packet)}
@@ -32,6 +32,7 @@ engine.on('intent',i=>emit('intent',i));
 engine.on('tracking',t=>emit('tracking',t));
 engine.on('profile',p=>emit('profile',p));
 engine.on('adaptive',a=>emit('adaptive',a));
+engine.on('calibration',c=>emit('calibration',c));
 engine.on('recovery',r=>emit('recovery',r));
 engine.on('qualityguard',q=>emit('qualityguard',q));
 router.on('command',c=>emit('command',c));
