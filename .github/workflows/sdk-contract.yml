@@ -1,0 +1,28 @@
+name: SDK Contract Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sdk/**'
+      - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/sdk-contract.yml'
+  pull_request:
+    paths:
+      - 'sdk/**'
+      - 'tests/**'
+      - 'package.json'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm test
