@@ -1,7 +1,7 @@
 {
   "name": "air-gesture-lab-sdk",
-  "version": "2.3.0",
-  "description": "Gesture-native browser core, modular robustness runtime, external integration demo and contract tests extracted from Air Gesture Lab.",
+  "version": "2.4.0",
+  "description": "Gesture-native browser core with modular robustness and an opt-in gesture vocabulary trigger layer.",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,15 +19,20 @@
     "./robustness/tracking-quality-guard": "./sdk/robustness/tracking-quality-guard.mjs",
     "./robustness/low-light-monitor": "./sdk/robustness/low-light-monitor.mjs",
     "./robustness/core": "./sdk/robustness/robustness-core.mjs",
-    "./browser-facade": "./air-gesture-sdk.js"
+    "./vocabulary": "./sdk/vocabulary/index.mjs",
+    "./browser-facade": "./air-gesture-sdk.js",
+    "./browser-vocabulary": "./air-gesture-vocabulary.js"
   },
   "files": [
     "sdk",
     "air-gesture-sdk.js",
+    "air-gesture-vocabulary.js",
+    "air-gesture-vocabulary.css",
     "SDK.md"
   ],
   "sideEffects": [
     "./air-gesture-sdk.js",
+    "./air-gesture-vocabulary.js",
     "./sdk/browser-bridge.mjs"
   ]
 }
