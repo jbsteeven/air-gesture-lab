@@ -29,27 +29,38 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v1.8** — Tracking Quality Guard.
 - **v1.8.1** — Low Light Resilience.
 - **v1.9** — Robustness Core.
-- **v2.0** — Gesture SDK Core: facade pubblica `window.AirGestureSDK`, eventi stabili, enable/disable del command routing, accesso a profili, Robustness Core e Profile Passport.
+- **v2.0** — Gesture SDK Core: facade pubblica `window.AirGestureSDK`.
+- **v2.1** — ESM Package Core: Gesture Engine e Command Router diventano moduli ES importabili, con runtime headless e package metadata.
 
 ## Architettura
 
-`Front Camera -> MediaPipe Hands -> AirGestureEngine -> Guardrails -> AirRobustnessCore -> AirCommandRouter -> AirGestureSDK -> Application UI / External PWA`
+Runtime PWA:
+
+`Front Camera -> MediaPipe Hands -> AirGestureEngine -> Guardrails -> AirRobustnessCore -> AirCommandRouter -> AirGestureSDK -> Application UI`
+
+Package ESM:
+
+`Landmarks -> sdk/core/AirGestureEngine -> sdk/core/AirCommandRouter -> createGestureRuntime() -> External PWA`
 
 Componenti principali:
 
-- `gesture-engine.js` traduce i landmark in eventi semantici (`pointer`, `pinch`, `swipe`, `scroll`, `palm`, `fist`).
-- `command-router.js` assegna a ogni evento un significato in base al contesto.
-- `session-metrics.js` produce telemetria diagnostica locale.
-- `personal-calibration.js` genera il profilo personale.
-- `profile-health.js`, `profile-memory.js`, `drift-monitor.js` validano nel tempo il profilo personale.
-- `profile-passport.js` esporta/importa il profilo personale in JSON.
-- `personal-controls.js` separa gestione del profilo e calibrazione.
-- `hand-recovery.js` gestisce perdita e riacquisizione della mano.
-- `low-light-monitor.js` stima la luminanza media locale.
-- `tracking-quality-guard.js` intercetta condizioni geometriche anomale.
-- `transfer-check.js` valida passivamente un profilo importato.
-- `robustness-core.js` pubblica un unico stato operativo di affidabilità.
-- `air-gesture-sdk.js` espone il runtime attraverso una API pubblica stabile.
+- `gesture-engine.js` — runtime classico del Gesture Engine.
+- `command-router.js` — router contestuale classico.
+- `session-metrics.js` — telemetria diagnostica locale.
+- `personal-calibration.js` — profilo personale.
+- `profile-health.js`, `profile-memory.js`, `drift-monitor.js` — validazione storica del profilo.
+- `profile-passport.js` — import/export JSON del profilo.
+- `personal-controls.js` — gestione Personal separata dalla calibrazione.
+- `hand-recovery.js` — perdita e riacquisizione della mano.
+- `low-light-monitor.js` — stima locale della luminanza.
+- `tracking-quality-guard.js` — guardia sul degrado geometrico.
+- `transfer-check.js` — verifica passiva dei profili importati.
+- `robustness-core.js` — stato operativo unificato.
+- `air-gesture-sdk.js` — facade browser pubblica.
+- `sdk/index.mjs` — entrypoint ESM pubblico.
+- `sdk/core/gesture-engine.mjs` — Gesture Engine importabile senza `window`.
+- `sdk/core/command-router.mjs` — Command Router importabile senza `window`.
+- `sdk/browser-bridge.mjs` — bridge ESM della demo.
 
 ## Safe Neutral
 
@@ -81,26 +92,20 @@ Il monitor non salva né trasmette immagini.
 
 ## Robustness Core
 
-`robustness-core.js` aggrega i guardrail negli stati:
-
-1. `NO HAND`
-2. `RECOVERING`
-3. `DEGRADED`
-4. `LOW LIGHT`
-5. `READY`
+`robustness-core.js` aggrega i guardrail negli stati `NO HAND`, `RECOVERING`, `DEGRADED`, `LOW LIGHT` e `READY`.
 
 Espone `window.AirRobustnessCore` con `snapshot()`, `state`, `commandSafe` e `subscribe(callback)`, più l'evento browser `airrobustnesschange`.
 
-## Gesture SDK Core v2.0
+## Gesture SDK Browser
 
-La v2.0 introduce `window.AirGestureSDK` come contratto pubblico sopra il runtime già validato. La demo continua a funzionare con gli stessi moduli; l'SDK aggiunge una facade senza riscrivere il motore e quindi riduce il rischio di regressioni.
+`window.AirGestureSDK` è il contratto pubblico sopra il runtime completo della demo.
 
 API essenziale:
 
 ```js
 const sdk = window.AirGestureSDK;
 
-sdk.VERSION;             // 2.0.0
+sdk.VERSION;             // 2.1.0
 sdk.snapshot();
 sdk.enable();
 sdk.disable();
@@ -110,27 +115,62 @@ sdk.setContext('workspace');
 
 const off = sdk.onGesture(g => console.log(g));
 off();
-
-sdk.onPointer(p => console.log(p.x, p.y));
-sdk.onStateChange(s => console.log(s.state, s.commandSafe));
 ```
 
-Eventi disponibili: `gesture`, `pointer`, `pose`, `intent`, `tracking`, `command`, `context`, `robustness`, `enabled`, `profile`, `adaptive`, `recovery`, `qualityguard`.
+Gli eventi vengono pubblicati anche come `CustomEvent` browser con namespace `airgesture:*`.
 
-Gli stessi eventi vengono pubblicati anche come `CustomEvent` browser con namespace `airgesture:*`, per esempio `airgesture:gesture`. Quando l'SDK è pronto viene emesso `airgesture:sdkready`.
+## ESM Package Core v2.1
 
-`disable()` mantiene tracking e diagnostica attivi ma sopprime il command routing dell'app, permettendo a una PWA ospite di sospendere le azioni senza spegnere camera o detector.
+Il nuovo entrypoint importabile è:
 
-L'SDK espone inoltre:
+```js
+import {
+  VERSION,
+  AirGestureEngine,
+  AirCommandRouter,
+  createGestureRuntime
+} from './sdk/index.mjs';
+```
 
-- `processLandmarks(landmarks)` per future integrazioni con detector esterni;
-- `setPersonalCalibration(profile)`;
-- `exportProfilePacket()`;
-- `importProfilePacket(packet)`;
-- `downloadProfile()`;
-- `robustness` e `metrics` come snapshot correnti.
+Per un'integrazione semplice:
 
-La documentazione completa è in `SDK.md`.
+```js
+const runtime = createGestureRuntime({
+  engine: {
+    profile: 'balanced',
+    adaptiveScale: true
+  },
+  context: 'workspace'
+});
+
+runtime.on('gesture', g => console.log(g));
+runtime.on('command', c => console.log(c));
+runtime.on('pointer', p => console.log(p));
+
+runtime.processLandmarks(landmarks);
+```
+
+Il runtime ESM non richiede DOM, camera o `window`. Riceve landmark dall'esterno e produce gli stessi eventi semantici del motore della PWA.
+
+Import diretto delle classi:
+
+```js
+import { AirGestureEngine } from './sdk/core/gesture-engine.mjs';
+import { AirCommandRouter } from './sdk/core/command-router.mjs';
+```
+
+La demo carica anche `sdk/browser-bridge.mjs`, che pubblica `window.AirGestureESM` ed emette `airgesture:esmready`. Questo consente di verificare che la catena ESM sia realmente caricabile dal browser senza sostituire il runtime classico.
+
+## Package metadata
+
+Il repository contiene `package.json` con `exports` verso:
+
+- `./sdk/index.mjs`;
+- `./sdk/core/gesture-engine.mjs`;
+- `./sdk/core/command-router.mjs`;
+- `./air-gesture-sdk.js` come browser facade.
+
+Il package è ancora marcato `private: true`: la struttura è pronta per essere testata e successivamente distribuita, ma non viene pubblicata automaticamente su un registry.
 
 ## Transfer Check
 
@@ -142,12 +182,16 @@ La telemetria locale misura qualità del tracking, stabilità, intent annullati,
 
 ## PWA e cache
 
-Il service worker gestisce risorse same-origin e applica il fallback HTML solo alle navigazioni. Gli asset MediaPipe restano caricati da jsDelivr.
+Il service worker gestisce risorse same-origin e applica il fallback HTML solo alle navigazioni. Gli asset MediaPipe restano caricati da jsDelivr. Dalla v2.1 vengono messi in cache anche gli entrypoint ESM usati dalla demo.
 
 ## Privacy
 
 Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame. Tracking e logica gesture vengono elaborati nel browser. Il monitor luce calcola soltanto una luminanza media locale. Profilo personale, Profile Health, Profile Memory e Transfer Check restano nel browser.
 
+## Documentazione
+
+La documentazione API completa è in `SDK.md`.
+
 ## Roadmap
 
-Separazione progressiva del core in moduli importabili ESM, pacchetto distributivo riutilizzabile, esempi di integrazione in PWA esterne e stabilizzazione del contratto pubblico SDK 2.x.
+Estrarre progressivamente in ESM anche Robustness Core e guardrail, aggiungere esempi di integrazione esterna e test automatici del contratto pubblico SDK 2.x.
