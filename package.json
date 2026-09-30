@@ -1,13 +1,18 @@
 {
   "name": "air-gesture-lab-sdk",
-  "version": "2.1.0",
-  "description": "Gesture-native browser core extracted from Air Gesture Lab.",
+  "version": "2.2.0",
+  "description": "Gesture-native browser core and modular robustness runtime extracted from Air Gesture Lab.",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./sdk/index.mjs",
     "./core/gesture-engine": "./sdk/core/gesture-engine.mjs",
     "./core/command-router": "./sdk/core/command-router.mjs",
+    "./robustness": "./sdk/robustness/index.mjs",
+    "./robustness/hand-recovery": "./sdk/robustness/hand-recovery.mjs",
+    "./robustness/tracking-quality-guard": "./sdk/robustness/tracking-quality-guard.mjs",
+    "./robustness/low-light-monitor": "./sdk/robustness/low-light-monitor.mjs",
+    "./robustness/core": "./sdk/robustness/robustness-core.mjs",
     "./browser-facade": "./air-gesture-sdk.js"
   },
   "files": [
