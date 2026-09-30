@@ -13,7 +13,7 @@ const info={
 };
 function ensureUi(){
  if(!$('#robustnessCore')){
-  const el=document.createElement('aside');el.id='robustnessCore';el.dataset.state='READY';
+  const el=document.createElement('aside');el.id='robustnessCore';el.dataset.state='READY';el.hidden=true;
   el.innerHTML='<span>ROBUSTNESS CORE</span><b id="robustnessName">READY</b><small id="robustnessHint">Sistema affidabile · comandi attivi</small><small id="robustnessMeta">RECOVERY 0 · GUARD 0 · LIGHT —</small>';
   document.body.appendChild(el)
  }
@@ -33,9 +33,10 @@ function derive(){
 }
 function render(force=false){
  ensureUi();const s=derive(),lightLabel=s.light.level==='WAIT'?'—':`${s.light.level} ${Math.round(s.light.luminance||0)}`;
- const key=[s.state,s.recovery.recoveries||0,s.guard.triggers||0,lightLabel,s.commandSafe].join('|');
+ const lab=$('#lab'),box=$('#robustnessCore');if(box)box.hidden=!!lab?.hidden;
+ const key=[s.state,s.recovery.recoveries||0,s.guard.triggers||0,lightLabel,s.commandSafe,box?.hidden?'0':'1'].join('|');
  if(!force&&key===lastKey)return s;lastKey=key;lastSnapshot=s;
- const box=$('#robustnessCore'),name=$('#robustnessName'),hint=$('#robustnessHint'),meta=$('#robustnessMeta');
+ const name=$('#robustnessName'),hint=$('#robustnessHint'),meta=$('#robustnessMeta');
  if(box)box.dataset.state=s.state;
  if(name)name.textContent=info[s.state]?.label||s.state;
  if(hint)hint.textContent=info[s.state]?.hint||'';
