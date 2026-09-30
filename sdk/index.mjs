@@ -3,7 +3,7 @@ import {AirCommandRouter} from './core/command-router.mjs';
 import {AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore} from './robustness/index.mjs';
 
 export {AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore};
-export const VERSION='2.2.0';
+export const VERSION='2.3.0';
 
 const BASE_EVENTS=['gesture','pointer','pose','intent','tracking','mode','profile','adaptive','calibration','command','context'];
 const ROBUST_EVENTS=['recovery','qualityguard','light','robustness'];
