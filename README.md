@@ -7,8 +7,9 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v0.1–v1.9** — evoluzione del motore gesture, Safe Neutral, Personal Calibration, Profile Passport, Hand Recovery, Tracking Quality Guard, Low Light Resilience e Robustness Core.
 - **v2.0** — Gesture SDK Core: facade pubblica `window.AirGestureSDK`.
 - **v2.1** — ESM Package Core: Gesture Engine e Command Router diventano moduli ES importabili.
-- **v2.2** — Modular Robustness SDK: Hand Recovery, Tracking Quality Guard, Low Light Monitor e Robustness Core diventano moduli ESM headless riutilizzabili.
+- **v2.2** — Modular Robustness SDK: Hand Recovery, Tracking Quality Guard, Low Light Monitor e Robustness Core diventano moduli ESM headless.
 - **v2.3** — External Integration Demo & Contract Tests: una seconda PWA usa direttamente il package ESM e GitHub Actions verifica automaticamente il contratto SDK 2.x.
+- **v2.4** — Air Gesture Vocabulary: livello touchless opzionale che traduce pose e gesture validate in trigger astratti configurabili. È **OFF di default** e nella demo principale si abilita soltanto dalle Impostazioni.
 
 ## Architettura
 
@@ -16,54 +17,61 @@ Runtime PWA principale:
 
 `Front Camera -> MediaPipe Hands -> AirGestureEngine -> Guardrails -> AirRobustnessCore -> AirCommandRouter -> AirGestureSDK -> Application UI`
 
+Vocabulary opzionale:
+
+`Validated Hand Geometry -> Air Gesture Vocabulary -> Abstract Trigger -> Host Application Mapping`
+
 Package ESM:
 
-`Landmarks -> AirGestureEngine -> Modular Guardrails -> AirRobustnessCore -> AirCommandRouter -> createRobustGestureRuntime() -> External PWA`
+`Landmarks -> AirGestureEngine -> Modular Guardrails -> AirRobustnessCore -> AirGestureVocabulary -> AirCommandRouter -> External PWA`
 
-## Moduli principali
+## Air Gesture Vocabulary
 
-- `gesture-engine.js` / `sdk/core/gesture-engine.mjs` — Gesture Engine classico ed ESM.
-- `command-router.js` / `sdk/core/command-router.mjs` — routing contestuale.
-- `hand-recovery.js` / `sdk/robustness/hand-recovery.mjs` — perdita e riacquisizione della mano.
-- `tracking-quality-guard.js` / `sdk/robustness/tracking-quality-guard.mjs` — protezione dal tracking degradato.
-- `low-light-monitor.js` / `sdk/robustness/low-light-monitor.mjs` — stima della luminanza.
-- `robustness-core.js` / `sdk/robustness/robustness-core.mjs` — stato operativo unificato.
-- `air-gesture-sdk.js` — facade browser completa.
-- `sdk/index.mjs` — entrypoint ESM pubblico.
-- `sdk/browser-bridge.mjs` — bridge ESM della demo principale.
+Il Vocabulary non sostituisce il Gesture Engine e non modifica il comportamento stabile dell'app quando è disattivato.
 
-## Safe Neutral
+Nella demo principale:
 
-I comandi discreti richiedono prima una breve posizione neutrale. Dopo un comando il motore torna disarmato finché non viene nuovamente raggiunto `NEUTRAL · READY`.
+1. il valore iniziale è `OFF`;
+2. l'attivazione avviene dal pannello **Impostazioni**;
+3. ogni simbolo produce un trigger astratto;
+4. il mapping può essere modificato senza cambiare le soglie gesture;
+5. disattivando il Vocabulary, nessun trigger del vocabolario viene interpretato o emesso.
 
-Le soglie gesture validate non vengono modificate dai moduli di robustezza.
+Vocabolario iniziale:
 
-## Low Light Resilience
+| Token | Forma | Mapping standard |
+| --- | --- | --- |
+| `PALM` | ✋ | `BACK` |
+| `FIST` | ✊ | `PAUSE` |
+| `POINT` | ☝ | `POINT` |
+| `V_SIGN` | ✌ | `SCROLL` |
+| `PINCH` | 🤏 | `SELECT` |
+| `SWIPE_LEFT` | ← | `PREVIOUS` |
+| `SWIPE_RIGHT` | → | `NEXT` |
 
-La demo usa `minDetectionConfidence = 0.66`, `minTrackingConfidence = 0.64`, grace period sui dropout brevi e monitor locale della luminanza su una miniatura temporanea 24×18. Il monitor non salva né trasmette immagini.
+I nomi sono volutamente neutri e non dipendono da un settore o da uno scenario applicativo specifico.
 
-## Robustness Core
-
-Gli stati operativi sono `NO HAND`, `RECOVERING`, `DEGRADED`, `LOW LIGHT` e `READY`.
-
-Il runtime browser espone `window.AirRobustnessCore`; il package ESM espone anche `AirRobustnessCore` come classe indipendente dal DOM.
-
-## Gesture SDK Browser
+## Browser API
 
 ```js
 const sdk = window.AirGestureSDK;
 
-sdk.VERSION; // 2.3.0
+sdk.VERSION; // 2.4.0
 sdk.snapshot();
-sdk.enable();
-sdk.disable();
-sdk.setProfile('balanced');
-sdk.setAdaptiveScale(true);
-sdk.setContext('workspace');
 sdk.onGesture(g => console.log(g));
+sdk.onVocabulary(t => console.log(t.token, t.action));
 ```
 
-## ESM Package v2.3
+Il Vocabulary browser espone anche:
+
+```js
+window.AirGestureVocabulary.snapshot();
+window.AirGestureVocabulary.setMapping('PALM', 'TRIGGER_1');
+```
+
+L'attivazione programmatica resta disponibile all'SDK per le applicazioni ospiti; nella demo Air Gesture Lab l'utente la controlla dal pannello Impostazioni.
+
+## ESM Package v2.4
 
 ```js
 import {
@@ -74,84 +82,58 @@ import {
   AirTrackingQualityGuard,
   AirLowLightMonitor,
   AirRobustnessCore,
+  AirGestureVocabulary,
   createGestureRuntime,
   createRobustGestureRuntime
 } from './sdk/index.mjs';
 ```
 
-Runtime completo con guardrail:
+Il runtime crea sempre l'oggetto `runtime.vocabulary`, ma lo mantiene disabilitato per default:
 
 ```js
-const runtime = createRobustGestureRuntime({
-  engine: {
-    profile: 'balanced',
-    adaptiveScale: true
-  }
-});
+const runtime = createRobustGestureRuntime();
 
-runtime.on('gesture', g => console.log(g));
-runtime.on('robustness', s => console.log(s.state, s.commandSafe));
-runtime.processLandmarks(landmarks);
+runtime.vocabulary.snapshot().enabled; // false
+runtime.setVocabularyEnabled(true);
+runtime.setVocabularyMapping('PINCH', 'SELECT');
+runtime.on('vocabulary', t => console.log(t));
 ```
 
-Quando il detector non vede più la mano:
+## Robustness Core
 
-```js
-runtime.markHandLost();
-```
+Gli stati operativi sono `NO HAND`, `RECOVERING`, `DEGRADED`, `LOW LIGHT` e `READY`.
 
-Per il monitor luce:
-
-```js
-runtime.updateLuminance(58);
-// oppure
-runtime.updateImageData(imageData.data);
-```
+Il Vocabulary lavora a valle dei guardrail nel runtime ESM: i frame bloccati dal Quality Guard o dal Recovery non vengono usati per costruire trigger.
 
 ## External Integration Demo
 
-`examples/external-pwa/` è una seconda mini-PWA indipendente dall'interfaccia principale. Importa direttamente:
-
-```js
-import { VERSION, createRobustGestureRuntime } from '../../sdk/index.mjs';
-```
-
-La demo usa MediaPipe soltanto come detector di landmark; pointer, gesture, routing e Robustness provengono dal package ESM. Ha un proprio manifest e service worker, quindi costituisce un test reale di integrazione esterna su GitHub Pages.
+`examples/external-pwa/` resta una mini-PWA indipendente dalla UI principale e importa direttamente il package ESM.
 
 ## Contract Tests
 
-`tests/sdk-contract.test.mjs` usa il test runner nativo di Node per verificare:
+`tests/sdk-contract.test.mjs` verifica ora anche:
 
-- versione e caricamento dell'entrypoint ESM;
-- command routing;
-- classificazione Low Light;
-- priorità degli stati Robustness;
-- attivazione del Quality Guard e hand-off a Recovery.
+- `VERSION === '2.4.0'`;
+- Vocabulary disattivato per default;
+- nessun trigger quando è OFF;
+- emissione del trigger dopo attivazione;
+- mapping personalizzabile;
+- routing, Low Light, Robustness e Quality Guard già coperti dalla v2.3.
 
-Esecuzione locale:
+Esecuzione:
 
 ```bash
 npm test
 ```
 
-La workflow `.github/workflows/sdk-contract.yml` esegue gli stessi test con Node 20 su GitHub Actions a ogni modifica di `sdk/**`, `tests/**` o `package.json`.
-
 ## Package metadata
 
-`package.json` espone gli entrypoint core e robustness ed è alla versione `2.3.0`. Il package resta `private: true`: è pronto per test e distribuzione controllata, ma non viene pubblicato automaticamente su registry esterni.
-
-## Personal Calibration e Profile Passport
-
-La calibrazione misura scala della mano e geometria del pinch e salva i valori soltanto nel browser. Profile Passport consente di esportare/importare scala personale, fattore del pinch e preferenze essenziali. Non trasferisce frame, immagini o landmark.
+`package.json` è alla versione `2.4.0` e aggiunge l'export `./vocabulary`. Il package resta `private: true` e non viene pubblicato automaticamente su registry esterni.
 
 ## Privacy
 
-Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame. Tracking e logica gesture vengono elaborati nel browser. Il monitor luce calcola soltanto una luminanza media locale.
+Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame. Tracking, Vocabulary e logica gesture vengono elaborati nel browser.
 
 ## Documentazione
 
 La documentazione API completa è in `SDK.md`.
-
-## Roadmap
-
-Stabilizzazione del contratto SDK 2.x, test di integrazione più estesi, separazione dei moduli applicativi rimanenti e successiva preparazione di una distribuzione package pubblicabile.
