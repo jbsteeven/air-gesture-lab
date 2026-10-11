@@ -5,7 +5,7 @@ import {AirGestureVocabulary,VOCABULARY_DICTIONARY,DEFAULT_VOCABULARY_MAPPING} f
 import {AirIrisGazeEstimator,AirGazeHandFusion} from './fusion/index.mjs';
 
 export {AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,AirGestureVocabulary,VOCABULARY_DICTIONARY,DEFAULT_VOCABULARY_MAPPING,AirIrisGazeEstimator,AirGazeHandFusion};
-export const VERSION='2.5.0';
+export const VERSION='2.5.1';
 
 const BASE_EVENTS=['gesture','pointer','fusedpointer','gaze','pose','intent','tracking','mode','profile','adaptive','calibration','command','context','vocabulary','vocabularychange'];
 const ROBUST_EVENTS=['recovery','qualityguard','light','robustness'];
