@@ -1,6 +1,6 @@
-# Air Gesture SDK v2.5
+# Air Gesture SDK v2.5.1
 
-La v2.5 aggiunge **Gaze-Hand Fusion Experimental**, un secondo layer opzionale che combina il puntatore della mano con una stima dello sguardo derivata dai landmark di viso e iride.
+La v2.5.1 aggiunge **Gaze-Hand Fusion Experimental**, un secondo layer opzionale che combina il puntatore della mano con una stima dello sguardo derivata dai landmark di viso e iride.
 
 Il principio resta non distruttivo:
 
@@ -32,8 +32,12 @@ import {
 Versione corrente:
 
 ```js
-VERSION === '2.5.0';
+VERSION === '2.5.1';
 ```
+
+## Mobile calibration hardening
+
+La v2.5.1 raccoglie campioni fino a una soglia minima invece di usare una finestra fissa breve, accetta escursioni raw dell’iride più piccole e abbassa il requisito minimo di larghezza dell’occhio. Questo evita molti fallimenti di calibrazione sui telefoni dove Face Mesh produce meno frame al secondo.
 
 ## AirIrisGazeEstimator
 
@@ -155,7 +159,7 @@ e viene conservata in `localStorage` sul dispositivo.
 ```js
 const sdk = window.AirGestureSDK;
 
-sdk.VERSION; // 2.5.0
+sdk.VERSION; // 2.5.1
 sdk.setGazeEnabled(true);
 sdk.setGazeMode('assist');
 await sdk.startGazeCalibration();
@@ -206,7 +210,7 @@ Questo impedisce che una perdita temporanea del face tracking interrompa la navi
 
 ## Precisione
 
-La v2.5 usa una normale camera frontale e realizza **fusione visiva monoculare**, non eye tracking IR dedicato e non triangolazione stereoscopica.
+La v2.5.1 usa una normale camera frontale e realizza **fusione visiva monoculare**, non eye tracking IR dedicato e non triangolazione stereoscopica.
 
 La qualità può variare con distanza, illuminazione, movimento della testa, occhiali, riflessi, qualità dell'ottica e posizione del dispositivo. Per questo lo sguardo viene usato come segnale ausiliario e non come unico comando di selezione.
 
@@ -214,7 +218,7 @@ La qualità può variare con distanza, illuminazione, movimento della testa, occ
 
 La suite verifica:
 
-- versione `2.5.0`;
+- versione `2.5.1`;
 - Gaze-Hand Fusion `off` per default;
 - puntatore invariato quando il layer è spento;
 - calibrazione e mapping del centro;
