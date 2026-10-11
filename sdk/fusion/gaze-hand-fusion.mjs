@@ -4,7 +4,7 @@ const median=values=>{const a=values.filter(Number.isFinite).sort((x,y)=>x-y);if
 export class AirIrisGazeEstimator{
  constructor(options={}){
   this.smoothing=Number.isFinite(options.smoothing)?clamp(options.smoothing,.05,.8):.28;
-  this.minEyeWidth=Number.isFinite(options.minEyeWidth)?options.minEyeWidth:.014;
+  this.minEyeWidth=Number.isFinite(options.minEyeWidth)?options.minEyeWidth:.008;
   this.calibration=null;
   this.last=null;
   if(options.calibration)this.setCalibration(options.calibration);
@@ -30,7 +30,7 @@ export class AirIrisGazeEstimator{
   const p=points||{},required=['center','left','right','top','bottom'];
   if(!required.every(k=>p[k]&&Number.isFinite(p[k].x)&&Number.isFinite(p[k].y)))return false;
   const dxL=Math.abs(p.center.x-p.left.x),dxR=Math.abs(p.right.x-p.center.x),dyT=Math.abs(p.center.y-p.top.y),dyB=Math.abs(p.bottom.y-p.center.y);
-  if(Math.min(dxL,dxR,dyT,dyB)<.006)return false;
+  if(Math.min(dxL,dxR,dyT,dyB)<.0025)return false;
   this.calibration=JSON.parse(JSON.stringify(p));
   this.last=null;
   return true;
