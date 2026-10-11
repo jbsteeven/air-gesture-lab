@@ -1,6 +1,6 @@
 {
   "name": "air-gesture-lab-sdk",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "Gesture-native browser core with modular robustness, opt-in gesture vocabulary, and optional gaze-hand fusion.",
   "private": true,
   "type": "module",
