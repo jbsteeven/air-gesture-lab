@@ -2,11 +2,12 @@ import {AirGestureEngine} from './core/gesture-engine.mjs';
 import {AirCommandRouter} from './core/command-router.mjs';
 import {AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore} from './robustness/index.mjs';
 import {AirGestureVocabulary,VOCABULARY_DICTIONARY,DEFAULT_VOCABULARY_MAPPING} from './vocabulary/index.mjs';
+import {AirIrisGazeEstimator,AirGazeHandFusion} from './fusion/index.mjs';
 
-export {AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,AirGestureVocabulary,VOCABULARY_DICTIONARY,DEFAULT_VOCABULARY_MAPPING};
-export const VERSION='2.4.0';
+export {AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,AirGestureVocabulary,VOCABULARY_DICTIONARY,DEFAULT_VOCABULARY_MAPPING,AirIrisGazeEstimator,AirGazeHandFusion};
+export const VERSION='2.5.0';
 
-const BASE_EVENTS=['gesture','pointer','pose','intent','tracking','mode','profile','adaptive','calibration','command','context','vocabulary','vocabularychange'];
+const BASE_EVENTS=['gesture','pointer','fusedpointer','gaze','pose','intent','tracking','mode','profile','adaptive','calibration','command','context','vocabulary','vocabularychange'];
 const ROBUST_EVENTS=['recovery','qualityguard','light','robustness'];
 
 export function createGestureRuntime(options={}){
@@ -18,11 +19,20 @@ export function createGestureRuntime(options={}){
  const robustEnabled=options.robustness===true;
  const vocabularyOptions=typeof options.vocabulary==='object'?options.vocabulary:{enabled:options.vocabulary===true};
  const vocabulary=new AirGestureVocabulary(engine,vocabularyOptions);
+ const gazeOptions=typeof options.gaze==='object'?options.gaze:(options.gaze===true?{enabled:true}:{});
+ const gazeEstimator=new AirIrisGazeEstimator({...gazeOptions.estimator,calibration:gazeOptions.calibration||gazeOptions.estimator?.calibration});
+ const gazeMode=gazeOptions.mode||(gazeOptions.enabled===true?'assist':'off');
+ const gazeFusion=new AirGazeHandFusion({...gazeOptions.fusion,mode:gazeMode});
  const setFor=name=>{if(!listeners.has(name))listeners.set(name,new Set());return listeners.get(name)};
  const emit=(name,payload)=>{for(const fn of setFor(name)){try{fn(payload)}catch(e){}}};
  const on=(name,fn)=>{if(typeof fn!=='function')return()=>{};setFor(name).add(fn);return()=>setFor(name).delete(fn)};
  const once=(name,fn)=>{let off=()=>{};off=on(name,p=>{off();fn(p)});return off};
- ['gesture','pointer','pose','intent','tracking','mode','profile','adaptive','calibration'].forEach(name=>engine.on(name,p=>emit(name,p)));
+ ['gesture','pose','intent','tracking','mode','profile','adaptive','calibration'].forEach(name=>engine.on(name,p=>emit(name,p)));
+ engine.on('pointer',p=>{
+  emit('pointer',p);
+  const targets=typeof gazeOptions.targets==='function'?gazeOptions.targets():gazeOptions.targets||[];
+  emit('fusedpointer',gazeFusion.resolve(p,targets));
+ });
  engine.on('gesture',g=>vocabulary.handleGesture(g));
  vocabulary.onTrigger(t=>emit('vocabulary',t));
  vocabulary.subscribe(s=>emit('vocabularychange',s));
@@ -50,6 +60,15 @@ export function createGestureRuntime(options={}){
   vocabulary.observeLandmarks(landmarks);
   engine.process(landmarks);return true
  }
+ function processFaceLandmarks(landmarks){
+  const g=gazeEstimator.estimate(landmarks);
+  if(!g)return null;
+  if(g.calibrated&&Number.isFinite(g.x)&&Number.isFinite(g.y)){
+   const payload={...g,timestamp:Date.now()};
+   gazeFusion.updateGaze(payload);emit('gaze',payload);return payload
+  }
+  return g
+ }
  const api={
   VERSION,
   engine,
@@ -59,10 +78,14 @@ export function createGestureRuntime(options={}){
   light,
   robustness,
   vocabulary,
+  gazeEstimator,
+  gazeFusion,
   events:[...BASE_EVENTS,...(robustEnabled?ROBUST_EVENTS:[])],
   on,
   once,
   processLandmarks,
+  processFaceLandmarks,
+  resolvePointer(hand,targets=[]){return gazeFusion.resolve(hand,targets)},
   markHandLost(reason='detector-no-hand'){if(!recovery)return false;recovery.markLost(reason);return true},
   updateLuminance(value){return light?light.updateLuminance(value):null},
   updateImageData(data){return light?light.updateImageData(data):null},
@@ -72,7 +95,10 @@ export function createGestureRuntime(options={}){
   setPersonalCalibration(profile){return engine.setPersonalCalibration(profile)},
   setVocabularyEnabled(value){return vocabulary.setEnabled(!!value)},
   setVocabularyMapping(token,action){return vocabulary.setMapping(token,action)},
-  snapshot(){return{version:VERSION,context:router.context,profile:engine.profile,adaptiveScale:!!engine.adaptiveScale,personal:{...engine.personal},refScale:engine.refScale,commandReady:!!engine.commandReady,stats:{...engine.stats},robustness:robustness?.snapshot?.()||null,vocabulary:vocabulary.snapshot()}},
+  setGazeFusionMode(mode){return gazeFusion.setMode(mode)},
+  setGazeCalibration(points){return gazeEstimator.setCalibration(points)},
+  clearGazeCalibration(){gazeEstimator.clearCalibration();gazeFusion.updateGaze(null);return true},
+  snapshot(){return{version:VERSION,context:router.context,profile:engine.profile,adaptiveScale:!!engine.adaptiveScale,personal:{...engine.personal},refScale:engine.refScale,commandReady:!!engine.commandReady,stats:{...engine.stats},robustness:robustness?.snapshot?.()||null,vocabulary:vocabulary.snapshot(),gaze:{estimator:gazeEstimator.snapshot(),fusion:gazeFusion.snapshot()}}},
   destroy(){robustness?.destroy?.();listeners.clear()}
  };
  return Object.freeze(api)
@@ -93,4 +119,4 @@ export function whenBrowserSDK({timeout=5000}={}){
  })
 }
 
-export default {VERSION,AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,AirGestureVocabulary,VOCABULARY_DICTIONARY,DEFAULT_VOCABULARY_MAPPING,createGestureRuntime,createRobustGestureRuntime,getBrowserSDK,whenBrowserSDK};
+export default {VERSION,AirGestureEngine,AirCommandRouter,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,AirGestureVocabulary,VOCABULARY_DICTIONARY,DEFAULT_VOCABULARY_MAPPING,AirIrisGazeEstimator,AirGazeHandFusion,createGestureRuntime,createRobustGestureRuntime,getBrowserSDK,whenBrowserSDK};
