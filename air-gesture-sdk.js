@@ -1,10 +1,10 @@
 (()=>{
 if(typeof engine==='undefined'||typeof router==='undefined')return;
-const VERSION='2.4.0';
+const VERSION='2.5.0';
 const events=new Map();
 let enabled=true;
 const originalRoute=router.route.bind(router);
-const validEvents=['gesture','pointer','pose','intent','tracking','command','context','robustness','enabled','profile','adaptive','calibration','recovery','qualityguard','vocabulary','vocabularychange'];
+const validEvents=['gesture','pointer','pose','intent','tracking','command','context','robustness','enabled','profile','adaptive','calibration','recovery','qualityguard','vocabulary','vocabularychange','gaze','fusion','gazechange'];
 const clone=v=>{if(v==null||typeof v!=='object')return v;try{return JSON.parse(JSON.stringify(v))}catch(e){return v}};
 function setFor(name){if(!events.has(name))events.set(name,new Set());return events.get(name)}
 function emit(name,payload){const data=clone(payload);for(const fn of setFor(name)){try{fn(data)}catch(e){}}try{window.dispatchEvent(new CustomEvent('airgesture:'+name,{detail:data}))}catch(e){}}
@@ -13,8 +13,9 @@ function once(name,fn){if(typeof fn!=='function')return()=>{};let off=()=>{};off
 function safePersonal(){const p=typeof personalProfile!=='undefined'&&personalProfile?personalProfile:null;if(!p)return null;return{refScale:Number(p.refScale)||null,pinchFactor:Number(p.pinchFactor)||null,pinchRatio:Number.isFinite(Number(p.pinchRatio))?Number(p.pinchRatio):null,createdAt:Number(p.createdAt)||0,importedAt:Number(p.importedAt)||0}}
 function robustness(){return window.AirRobustnessCore?.snapshot?.()||{state:'READY',commandSafe:true}}
 function vocabulary(){return window.AirGestureVocabulary?.snapshot?.()||{enabled:false,mapping:{},dictionary:[]}}
+function gaze(){return window.AirGazeFusion?.snapshot?.()||{enabled:false,mode:'assist',calibrated:false,status:'OFF',gaze:null,fusion:null}}
 function metricsSnapshot(){try{return metrics?.snapshot?.()||null}catch(e){return null}}
-function snapshot(){return{sdkVersion:VERSION,enabled,context:router.context,profile:engine.profile,adaptiveScale:!!engine.adaptiveScale,personal:safePersonal(),robustness:robustness(),vocabulary:vocabulary(),metrics:metricsSnapshot(),capabilities:{pointer:true,pinch:true,swipe:true,palm:true,fist:true,scroll:true,personalProfile:true,profilePassport:!!window.AirProfilePassport,robustnessCore:!!window.AirRobustnessCore,handRecovery:!!window.AirHandRecovery,qualityGuard:!!window.AirTrackingQualityGuard,lowLight:!!window.AirLightMonitor,vocabulary:!!window.AirGestureVocabulary,esmPackage:!!window.AirGestureESM}}}
+function snapshot(){return{sdkVersion:VERSION,enabled,context:router.context,profile:engine.profile,adaptiveScale:!!engine.adaptiveScale,personal:safePersonal(),robustness:robustness(),vocabulary:vocabulary(),gaze:gaze(),metrics:metricsSnapshot(),capabilities:{pointer:true,pinch:true,swipe:true,palm:true,fist:true,scroll:true,personalProfile:true,profilePassport:!!window.AirProfilePassport,robustnessCore:!!window.AirRobustnessCore,handRecovery:!!window.AirHandRecovery,qualityGuard:!!window.AirTrackingQualityGuard,lowLight:!!window.AirLightMonitor,vocabulary:!!window.AirGestureVocabulary,gazeFusion:!!window.AirGazeFusion,esmPackage:!!window.AirGestureESM}}}
 function enable(){if(enabled)return snapshot();enabled=true;emit('enabled',{enabled:true});return snapshot()}
 function disable(){if(!enabled)return snapshot();enabled=false;if(typeof engine.clearIntent==='function')engine.clearIntent();if(typeof engine.disarm==='function')engine.disarm();if(typeof resetDwell==='function')resetDwell(false);emit('enabled',{enabled:false});return snapshot()}
 function setProfile(name){const ok=engine.setProfile(name);if(ok){try{localStorage.setItem('air_profile',name)}catch(e){}}return ok}
@@ -27,6 +28,10 @@ function setContext(name){return router.setContext(name)}
 function processLandmarks(landmarks){if(!Array.isArray(landmarks)||landmarks.length<21)return false;engine.process(landmarks);return true}
 function setVocabularyEnabled(value){return window.AirGestureVocabulary?.setEnabled?.(!!value)||null}
 function setVocabularyMapping(token,action){return window.AirGestureVocabulary?.setMapping?.(token,action)||false}
+function setGazeEnabled(value){return window.AirGazeFusion?.setEnabled?.(!!value)||null}
+function setGazeMode(mode){return window.AirGazeFusion?.setMode?.(mode)||false}
+function startGazeCalibration(){return window.AirGazeFusion?.startCalibration?.()||Promise.resolve(false)}
+function resetGazeCalibration(){return window.AirGazeFusion?.resetCalibration?.()||null}
 router.route=function(g){if(enabled)return originalRoute(g);const payload={command:'ignore',context:router.context,gesture:g,suppressed:true,reason:'sdk-disabled'};router.emit('command',payload);return payload};
 engine.on('gesture',g=>emit('gesture',{...g,enabled,robustness:robustness().state}));
 engine.on('pointer',p=>emit('pointer',{...p,enabled}));
@@ -44,7 +49,10 @@ if(window.AirRobustnessCore?.subscribe)window.AirRobustnessCore.subscribe(s=>emi
 else window.addEventListener('airrobustnesschange',e=>emit('robustness',e.detail));
 if(window.AirGestureVocabulary?.subscribe)window.AirGestureVocabulary.subscribe(s=>emit('vocabularychange',s));
 if(window.AirGestureVocabulary?.onTrigger)window.AirGestureVocabulary.onTrigger(t=>emit('vocabulary',t));
-const api={VERSION,events:[...validEvents],on,once,enable,disable,get enabled(){return enabled},snapshot,setProfile,setAdaptiveScale,setPersonalCalibration,setContext,get context(){return router.context},get robustness(){return robustness()},get vocabulary(){return vocabulary()},get metrics(){return metricsSnapshot()},processLandmarks,setVocabularyEnabled,setVocabularyMapping,exportProfilePacket,importProfilePacket,downloadProfile,onGesture:fn=>on('gesture',fn),onPointer:fn=>on('pointer',fn),onStateChange:fn=>on('robustness',fn),onVocabulary:fn=>on('vocabulary',fn),onVocabularyChange:fn=>on('vocabularychange',fn),onTracking:fn=>on('tracking',fn),onPose:fn=>on('pose',fn),onIntent:fn=>on('intent',fn),onCommand:fn=>on('command',fn)};
+if(window.AirGazeFusion?.subscribe)window.AirGazeFusion.subscribe(s=>emit('gazechange',s));
+if(window.AirGazeFusion?.onGaze)window.AirGazeFusion.onGaze(g=>emit('gaze',g));
+if(window.AirGazeFusion?.onFusion)window.AirGazeFusion.onFusion(f=>emit('fusion',f));
+const api={VERSION,events:[...validEvents],on,once,enable,disable,get enabled(){return enabled},snapshot,setProfile,setAdaptiveScale,setPersonalCalibration,setContext,get context(){return router.context},get robustness(){return robustness()},get vocabulary(){return vocabulary()},get gaze(){return gaze()},get metrics(){return metricsSnapshot()},processLandmarks,setVocabularyEnabled,setVocabularyMapping,setGazeEnabled,setGazeMode,startGazeCalibration,resetGazeCalibration,exportProfilePacket,importProfilePacket,downloadProfile,onGesture:fn=>on('gesture',fn),onPointer:fn=>on('pointer',fn),onStateChange:fn=>on('robustness',fn),onVocabulary:fn=>on('vocabulary',fn),onVocabularyChange:fn=>on('vocabularychange',fn),onGaze:fn=>on('gaze',fn),onFusion:fn=>on('fusion',fn),onGazeChange:fn=>on('gazechange',fn),onTracking:fn=>on('tracking',fn),onPose:fn=>on('pose',fn),onIntent:fn=>on('intent',fn),onCommand:fn=>on('command',fn)};
 window.AirGestureSDK=Object.freeze(api);
 try{window.dispatchEvent(new CustomEvent('airgesture:sdkready',{detail:{version:VERSION,snapshot:snapshot()}}))}catch(e){}
 })();
