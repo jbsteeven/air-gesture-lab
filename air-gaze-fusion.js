@@ -1,5 +1,6 @@
 (()=>{
 const ENABLE_KEY='air_gaze_enabled',MODE_KEY='air_gaze_mode',CAL_KEY='air_gaze_calibration';
+const FRAME_INTERVAL=80,CAL_TARGET=7,CAL_MIN=3,CAL_TIMEOUT=3200;
 let enabled=localStorage.getItem(ENABLE_KEY)==='1';
 let mode=['assist','fusion'].includes(localStorage.getItem(MODE_KEY))?localStorage.getItem(MODE_KEY):'assist';
 let calibration=loadCalibration(),estimator=null,fusion=null,faceMesh=null,initPromise=null,busy=false,lastProcess=0,lastGaze=null,lastFusion=null,statusText='OFF',calRun=0,calCapture=null;
@@ -17,12 +18,12 @@ async function ensureRuntime(){
  if(initPromise)return initPromise;
  initPromise=(async()=>{
   setStatus('CARICAMENTO');
-  const mod=await import('./sdk/fusion/index.mjs?v=250');
-  estimator=new mod.AirIrisGazeEstimator({smoothing:.30,calibration});
+  const mod=await import('./sdk/fusion/index.mjs?v=251');
+  estimator=new mod.AirIrisGazeEstimator({smoothing:.30,minEyeWidth:.008,calibration});
   fusion=new mod.AirGazeHandFusion({mode:enabled?mode:'off',maxGazeAge:520});
   await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js','airFaceMeshScript');
   faceMesh=new FaceMesh({locateFile:f=>'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/'+f});
-  faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.55,minTrackingConfidence:.52});
+  faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.45,minTrackingConfidence:.45});
   faceMesh.onResults(onFaceResults);
   setStatus(calibration?'READY':'DA CALIBRARE');
   return true;
@@ -32,21 +33,39 @@ async function ensureRuntime(){
 function onFaceResults(r){
  if(!enabled||!estimator)return;
  const lm=r.multiFaceLandmarks&&r.multiFaceLandmarks[0];
- if(!lm){lastGaze=null;if(fusion)fusion.updateGaze(null);setStatus(calibration?'VOLTO NON RILEVATO':'DA CALIBRARE');return}
+ if(!lm){
+  lastGaze=null;if(fusion)fusion.updateGaze(null);
+  if(calCapture?.collecting)setCalPhase('VOLTO NON RILEVATO · RESTA DAVANTI ALLA CAMERA');
+  setStatus(calCapture?'CALIBRAZIONE':calibration?'VOLTO NON RILEVATO':'DA CALIBRARE');
+  return;
+ }
+ if(lm.length<478){
+  if(calCapture?.collecting)setCalPhase('IRIDE NON DISPONIBILE SU QUESTO FRAME');
+  setStatus('IRIDE NON DISPONIBILE');
+  return;
+ }
  const g=estimator.estimate(lm);
- if(!g)return;
- if(calCapture&&calCapture.collecting&&Number.isFinite(g.rawX)&&Number.isFinite(g.rawY))calCapture.samples.push({rawX:g.rawX,rawY:g.rawY});
+ if(!g){
+  if(calCapture?.collecting)setCalPhase('OCCHI NON LEGGIBILI · MIGLIORA LA LUCE');
+  return;
+ }
+ if(calCapture&&calCapture.collecting&&Number.isFinite(g.rawX)&&Number.isFinite(g.rawY)&&g.confidence>=.30){
+  calCapture.samples.push({rawX:g.rawX,rawY:g.rawY,confidence:g.confidence});
+ }
  if(g.calibrated&&Number.isFinite(g.x)&&Number.isFinite(g.y)){
   lastGaze={x:g.x,y:g.y,confidence:g.confidence,timestamp:Date.now(),rawX:g.rawX,rawY:g.rawY};
-  fusion.updateGaze(lastGaze);setStatus('READY');emitGaze(lastGaze);
- }else{setStatus('DA CALIBRARE')}
+  fusion.updateGaze(lastGaze);if(!calCapture)setStatus('READY');emitGaze(lastGaze);
+ }else if(!calCapture)setStatus('DA CALIBRARE');
 }
 async function processFrame(video){
  if(!enabled||!video)return false;
- const now=performance.now();if(busy||now-lastProcess<110)return false;lastProcess=now;
+ const now=performance.now();if(busy||now-lastProcess<FRAME_INTERVAL)return false;lastProcess=now;
  try{await ensureRuntime()}catch(e){return false}
  if(!faceMesh)return false;
- busy=true;try{await faceMesh.send({image:video});return true}catch(e){setStatus('ERRORE');return false}finally{busy=false}
+ busy=true;
+ try{await faceMesh.send({image:video});return true}
+ catch(e){setStatus('ERRORE');return false}
+ finally{busy=false}
 }
 function targetRects(elements){
  const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
@@ -71,39 +90,60 @@ function setMode(v){
 }
 function wait(ms){return new Promise(r=>setTimeout(r,ms))}
 function setCalUi(name,x,y,phase){
- const o=document.querySelector('#airGazeCalibration'),dot=document.querySelector('#airGazeDot'),label=document.querySelector('#airGazeCalLabel'),phaseEl=document.querySelector('#airGazeCalPhase');
- if(!o||!dot)return;dot.style.left=(x*100)+'%';dot.style.top=(y*100)+'%';if(label)label.textContent=name;if(phaseEl)phaseEl.textContent=phase
+ const dot=document.querySelector('#airGazeDot'),label=document.querySelector('#airGazeCalLabel'),phaseEl=document.querySelector('#airGazeCalPhase');
+ if(dot){dot.style.left=(x*100)+'%';dot.style.top=(y*100)+'%'}
+ if(label)label.textContent=name;
+ if(phaseEl)phaseEl.textContent=phase;
+}
+function setCalPhase(phase){const phaseEl=document.querySelector('#airGazeCalPhase');if(phaseEl)phaseEl.textContent=phase}
+async function collectPoint(name,x,y,key,run){
+ if(run!==calRun)throw new Error('cancel');
+ calCapture={collecting:false,samples:[],name,x,y,key};
+ setCalUi(name,x,y,'GUARDA IL PUNTO');
+ await wait(700);
+ if(run!==calRun)throw new Error('cancel');
+ calCapture.collecting=true;
+ const started=performance.now();
+ while(run===calRun&&performance.now()-started<CAL_TIMEOUT&&calCapture.samples.length<CAL_TARGET){
+  setCalPhase('ACQUISIZIONE '+calCapture.samples.length+'/'+CAL_TARGET);
+  await wait(140);
+ }
+ calCapture.collecting=false;
+ const count=calCapture.samples.length;
+ setCalPhase('CAMPIONI '+count+' · ELABORAZIONE');
+ if(count<CAL_MIN)throw new Error('samples');
+ const point=estimator.constructor.medianSamples(calCapture.samples);
+ if(!point)throw new Error('samples');
+ await wait(220);
+ return point;
 }
 async function startCalibration(){
- const video=document.querySelector('#camera');if(!video||video.readyState<2){setStatus('ATTIVA PRIMA I GESTI');return false}
+ const video=document.querySelector('#camera');
+ if(!video||video.readyState<2){setStatus('ATTIVA PRIMA I GESTI');return false}
  if(!enabled)setEnabled(true);
  try{await ensureRuntime()}catch(e){return false}
  const overlay=document.querySelector('#airGazeCalibration');if(!overlay)return false;
- const run=++calRun;overlay.hidden=false;document.body.classList.add('air-gaze-calibrating');
+ const run=++calRun;overlay.hidden=false;document.body.classList.add('air-gaze-calibrating');setStatus('CALIBRAZIONE');
  const steps=[['CENTRO',.5,.5,'center'],['SINISTRA',.14,.5,'left'],['DESTRA',.86,.5,'right'],['ALTO',.5,.14,'top'],['BASSO',.5,.86,'bottom']],points={};
  try{
-  for(const [name,x,y,key] of steps){
-   if(run!==calRun)throw new Error('cancel');
-   calCapture={collecting:false,samples:[]};setCalUi(name,x,y,'GUARDA IL PUNTO');
-   await wait(650);if(run!==calRun)throw new Error('cancel');
-   calCapture.collecting=true;setCalUi(name,x,y,'MANTIENI LO SGUARDO');
-   await wait(950);calCapture.collecting=false;
-   const p=estimator.constructor.medianSamples(calCapture.samples);
-   if(!p||calCapture.samples.length<3)throw new Error('samples');
-   points[key]=p;
-  }
+  setCalUi('PREPARAZIONE',.5,.5,'RILEVAMENTO OCCHI…');
+  await wait(650);
+  for(const [name,x,y,key] of steps)points[key]=await collectPoint(name,x,y,key,run);
   if(!estimator.setCalibration(points))throw new Error('geometry');
   calibration=points;save();lastGaze=null;fusion.updateGaze(null);
-  setCalUi('OK',.5,.5,'CALIBRAZIONE COMPLETATA');setStatus('READY');await wait(700);
+  setCalUi('OK',.5,.5,'CALIBRAZIONE COMPLETATA');setStatus('READY');await wait(850);
   return true;
  }catch(e){
-  if(e.message!=='cancel'){setCalUi('RIPROVA',.5,.5,'SGUARDO NON RILEVATO CON SUFFICIENTE STABILITÀ');setStatus('DA CALIBRARE');await wait(1100)}
+  if(e.message!=='cancel'){
+   const msg=e.message==='samples'?'POCHI CAMPIONI · RESTA FERMO, AVVICINA IL VISO O MIGLIORA LA LUCE':'MOVIMENTO DELLO SGUARDO TROPPO RIDOTTO · RIPROVA';
+   setCalUi('RIPROVA',.5,.5,msg);setStatus('DA CALIBRARE');await wait(1700);
+  }
   return false;
  }finally{
   if(run===calRun){overlay.hidden=true;document.body.classList.remove('air-gaze-calibrating');calCapture=null}
  }
 }
-function cancelCalibration(){calRun++;calCapture=null;const o=document.querySelector('#airGazeCalibration');if(o)o.hidden=true;document.body.classList.remove('air-gaze-calibrating')}
+function cancelCalibration(){calRun++;calCapture=null;const o=document.querySelector('#airGazeCalibration');if(o)o.hidden=true;document.body.classList.remove('air-gaze-calibrating');setStatus(calibration?'READY':'DA CALIBRARE')}
 function resetCalibration(){calibration=null;estimator?.clearCalibration();lastGaze=null;fusion?.updateGaze(null);save();setStatus(enabled?'DA CALIBRARE':'OFF');return snapshot()}
 function ensureUi(){
  const panel=document.querySelector('#airSettingsPanel');if(!panel||document.querySelector('#airGazeToggle'))return;
@@ -113,7 +153,7 @@ function ensureUi(){
  document.querySelector('#airGazeMode').addEventListener('change',e=>setMode(e.target.value));
  document.querySelector('#airGazeCalibrate').addEventListener('click',startCalibration);
  document.querySelector('#airGazeReset').addEventListener('click',resetCalibration);
- const cal=document.createElement('div');cal.id='airGazeCalibration';cal.hidden=true;cal.innerHTML='<button type="button" id="airGazeCalCancel" aria-label="Annulla">×</button><div id="airGazeDot"></div><div id="airGazeCalCopy"><span id="airGazeCalLabel">CENTRO</span><b id="airGazeCalPhase">GUARDA IL PUNTO</b><small>Tieni il telefono fermo e muovi soltanto gli occhi quanto possibile.</small></div>';document.body.appendChild(cal);
+ const cal=document.createElement('div');cal.id='airGazeCalibration';cal.hidden=true;cal.innerHTML='<button type="button" id="airGazeCalCancel" aria-label="Annulla">×</button><div id="airGazeDot"></div><div id="airGazeCalCopy"><span id="airGazeCalLabel">CENTRO</span><b id="airGazeCalPhase">GUARDA IL PUNTO</b><small>Tieni il telefono fermo. Guarda ogni punto senza muovere la testa; la fase avanza quando ha raccolto abbastanza campioni.</small></div>';document.body.appendChild(cal);
  document.querySelector('#airGazeCalCancel').addEventListener('click',cancelCalibration);
  const hud=document.createElement('div');hud.id='airGazeHud';hud.hidden=true;hud.innerHTML='<span>GAZE + HAND</span><b id="airGazeHudMode">ASSIST</b><small id="airGazeHudState">DA CALIBRARE</small>';document.body.appendChild(hud);
  renderState()
