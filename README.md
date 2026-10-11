@@ -8,34 +8,44 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v2.0** — Gesture SDK Core: facade pubblica `window.AirGestureSDK`.
 - **v2.1** — ESM Package Core: Gesture Engine e Command Router diventano moduli ES importabili.
 - **v2.2** — Modular Robustness SDK: Hand Recovery, Tracking Quality Guard, Low Light Monitor e Robustness Core diventano moduli ESM headless.
-- **v2.3** — External Integration Demo & Contract Tests: una seconda PWA usa direttamente il package ESM e GitHub Actions verifica automaticamente il contratto SDK 2.x.
-- **v2.4** — Air Gesture Vocabulary: livello touchless opzionale che traduce pose e gesture validate in trigger astratti configurabili. È **OFF di default** e nella demo principale si abilita soltanto dalle Impostazioni.
+- **v2.3** — External Integration Demo & Contract Tests.
+- **v2.4** — Air Gesture Vocabulary: trigger layer opzionale e configurabile, **OFF di default**.
+- **v2.5** — Gaze-Hand Fusion Experimental: lo sguardo diventa un secondo segnale opzionale per affinare il bersaglio indicato dalla mano.
 
 ## Architettura
 
 Runtime PWA principale:
 
-`Front Camera -> MediaPipe Hands -> AirGestureEngine -> Guardrails -> AirRobustnessCore -> AirCommandRouter -> AirGestureSDK -> Application UI`
+`Front Camera -> MediaPipe Hands -> AirGestureEngine -> Guardrails -> AirRobustnessCore -> AirCommandRouter -> Application UI`
 
-Vocabulary opzionale:
+Layer opzionali:
 
-`Validated Hand Geometry -> Air Gesture Vocabulary -> Abstract Trigger -> Host Application Mapping`
+`Validated Hand Geometry -> Air Gesture Vocabulary -> Abstract Trigger`
+
+`MediaPipe Face Mesh + Iris -> Gaze Calibration -> Gaze-Hand Fusion -> Assisted Pointer`
 
 Package ESM:
 
-`Landmarks -> AirGestureEngine -> Modular Guardrails -> AirRobustnessCore -> AirGestureVocabulary -> AirCommandRouter -> External PWA`
+`Hand Landmarks + optional Face Landmarks -> Gesture Engine + Robustness + Vocabulary + Gaze-Hand Fusion -> Host Application`
+
+## Gaze-Hand Fusion v2.5
+
+La funzione è **OFF di default** e viene attivata esclusivamente dalle **Impostazioni**.
+
+Sono disponibili due modalità:
+
+- `ASSIST` — la mano resta il segnale principale; lo sguardo interviene soltanto quando mano e occhi convergono sullo stesso target.
+- `FUSION` — lo sguardo partecipa maggiormente alla correzione del puntatore, pur mantenendo la mano come controllo primario.
+
+Prima di contribuire alla selezione lo sguardo deve essere calibrato con una sequenza a cinque punti: centro, sinistra, destra, alto e basso.
+
+La camera resta invisibile. Face tracking e hand tracking utilizzano lo stesso stream della fotocamera frontale. Il Face Mesh viene caricato e processato soltanto quando Gaze-Hand Fusion è attivo; il campionamento del volto è limitato per non sostituire né rallentare intenzionalmente il Gesture Engine principale.
+
+La v2.5 implementa **fusione visiva monoculare**, non triangolazione stereoscopica. La precisione dipende da fotocamera, distanza, stabilità della testa, illuminazione, occhiali e riflessi. Se lo sguardo non è disponibile o è stale, il puntatore ritorna automaticamente al controllo della sola mano.
 
 ## Air Gesture Vocabulary
 
-Il Vocabulary non sostituisce il Gesture Engine e non modifica il comportamento stabile dell'app quando è disattivato.
-
-Nella demo principale:
-
-1. il valore iniziale è `OFF`;
-2. l'attivazione avviene dal pannello **Impostazioni**;
-3. ogni simbolo produce un trigger astratto;
-4. il mapping può essere modificato senza cambiare le soglie gesture;
-5. disattivando il Vocabulary, nessun trigger del vocabolario viene interpretato o emesso.
+Il Vocabulary rimane indipendente da Gaze-Hand Fusion e resta **OFF di default**.
 
 Vocabolario iniziale:
 
@@ -49,76 +59,75 @@ Vocabolario iniziale:
 | `SWIPE_LEFT` | ← | `PREVIOUS` |
 | `SWIPE_RIGHT` | → | `NEXT` |
 
-I nomi sono volutamente neutri e non dipendono da un settore o da uno scenario applicativo specifico.
+I nomi sono volutamente neutri e non dipendono da uno scenario applicativo specifico.
 
 ## Browser API
 
 ```js
 const sdk = window.AirGestureSDK;
 
-sdk.VERSION; // 2.4.0
+sdk.VERSION; // 2.5.0
 sdk.snapshot();
-sdk.onGesture(g => console.log(g));
-sdk.onVocabulary(t => console.log(t.token, t.action));
+
+sdk.setGazeEnabled(true);
+sdk.setGazeMode('assist');
+await sdk.startGazeCalibration();
+
+sdk.onGaze(g => console.log(g));
+sdk.onFusion(f => console.log(f.target, f.agreement));
 ```
 
-Il Vocabulary browser espone anche:
+API browser dirette:
 
 ```js
-window.AirGestureVocabulary.snapshot();
-window.AirGestureVocabulary.setMapping('PALM', 'TRIGGER_1');
+window.AirGazeFusion.snapshot();
+window.AirGazeFusion.setEnabled(true);
+window.AirGazeFusion.setMode('fusion');
+window.AirGazeFusion.startCalibration();
 ```
 
-L'attivazione programmatica resta disponibile all'SDK per le applicazioni ospiti; nella demo Air Gesture Lab l'utente la controlla dal pannello Impostazioni.
-
-## ESM Package v2.4
+## ESM Package v2.5
 
 ```js
 import {
   VERSION,
   AirGestureEngine,
   AirCommandRouter,
-  AirHandRecovery,
-  AirTrackingQualityGuard,
-  AirLowLightMonitor,
-  AirRobustnessCore,
   AirGestureVocabulary,
+  AirIrisGazeEstimator,
+  AirGazeHandFusion,
   createGestureRuntime,
   createRobustGestureRuntime
 } from './sdk/index.mjs';
 ```
 
-Il runtime crea sempre l'oggetto `runtime.vocabulary`, ma lo mantiene disabilitato per default:
+Esempio headless:
 
 ```js
-const runtime = createRobustGestureRuntime();
+const runtime = createRobustGestureRuntime({
+  gaze: { mode: 'assist' }
+});
 
-runtime.vocabulary.snapshot().enabled; // false
-runtime.setVocabularyEnabled(true);
-runtime.setVocabularyMapping('PINCH', 'SELECT');
-runtime.on('vocabulary', t => console.log(t));
+runtime.setGazeCalibration(calibrationPoints);
+runtime.processFaceLandmarks(faceLandmarks);
+
+runtime.on('fusedpointer', pointer => {
+  console.log(pointer.x, pointer.y, pointer.target);
+});
 ```
 
-## Robustness Core
-
-Gli stati operativi sono `NO HAND`, `RECOVERING`, `DEGRADED`, `LOW LIGHT` e `READY`.
-
-Il Vocabulary lavora a valle dei guardrail nel runtime ESM: i frame bloccati dal Quality Guard o dal Recovery non vengono usati per costruire trigger.
-
-## External Integration Demo
-
-`examples/external-pwa/` resta una mini-PWA indipendente dalla UI principale e importa direttamente il package ESM.
+Il core ESM non dipende dal DOM: l'applicazione ospite decide come ottenere i face landmarks e quali rettangoli normalizzati rappresentano i target interattivi.
 
 ## Contract Tests
 
-`tests/sdk-contract.test.mjs` verifica ora anche:
+`tests/sdk-contract.test.mjs` verifica anche:
 
-- `VERSION === '2.4.0'`;
-- Vocabulary disattivato per default;
-- nessun trigger quando è OFF;
-- emissione del trigger dopo attivazione;
-- mapping personalizzabile;
-- routing, Low Light, Robustness e Quality Guard già coperti dalla v2.3.
+- `VERSION === '2.5.0'`;
+- Gaze-Hand Fusion `OFF` per default;
+- nessuna alterazione del puntatore quando il layer è `OFF`;
+- mapping della calibrazione;
+- assistenza del target quando mano e sguardo concordano;
+- i contratti precedenti di routing, Vocabulary, Low Light, Robustness e Quality Guard.
 
 Esecuzione:
 
@@ -128,11 +137,11 @@ npm test
 
 ## Package metadata
 
-`package.json` è alla versione `2.4.0` e aggiunge l'export `./vocabulary`. Il package resta `private: true` e non viene pubblicato automaticamente su registry esterni.
+`package.json` è alla versione `2.5.0` ed espone anche `./fusion`. Il package resta `private: true`.
 
 ## Privacy
 
-Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame. Tracking, Vocabulary e logica gesture vengono elaborati nel browser.
+Il video della camera non viene mostrato nell'interfaccia. Il codice dell'app non registra né carica esplicitamente i frame. Hand tracking, face/iris tracking, calibrazione dello sguardo e fusione vengono elaborati nel browser. I dati di calibrazione della demo sono salvati localmente nel browser.
 
 ## Documentazione
 
