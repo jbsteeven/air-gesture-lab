@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --check app.js && node --check air-gaze-fusion.js && node --check air-gesture-sdk.js && node --check air-gesture-vocabulary.js && node --test tests/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
