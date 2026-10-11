@@ -75,6 +75,7 @@ function setCalUi(name,x,y,phase){
  if(!o||!dot)return;dot.style.left=(x*100)+'%';dot.style.top=(y*100)+'%';if(label)label.textContent=name;if(phaseEl)phaseEl.textContent=phase
 }
 async function startCalibration(){
+ const video=document.querySelector('#camera');if(!video||video.readyState<2){setStatus('ATTIVA PRIMA I GESTI');return false}
  if(!enabled)setEnabled(true);
  try{await ensureRuntime()}catch(e){return false}
  const overlay=document.querySelector('#airGazeCalibration');if(!overlay)return false;
