@@ -1,7 +1,7 @@
 {
   "name": "air-gesture-lab-sdk",
-  "version": "2.4.0",
-  "description": "Gesture-native browser core with modular robustness and an opt-in gesture vocabulary trigger layer.",
+  "version": "2.5.0",
+  "description": "Gesture-native browser core with modular robustness, opt-in gesture vocabulary, and optional gaze-hand fusion.",
   "private": true,
   "type": "module",
   "scripts": {
@@ -21,18 +21,24 @@
     "./robustness/core": "./sdk/robustness/robustness-core.mjs",
     "./vocabulary": "./sdk/vocabulary/index.mjs",
     "./browser-facade": "./air-gesture-sdk.js",
-    "./browser-vocabulary": "./air-gesture-vocabulary.js"
+    "./browser-vocabulary": "./air-gesture-vocabulary.js",
+    "./fusion": "./sdk/fusion/index.mjs",
+    "./fusion/gaze-hand-fusion": "./sdk/fusion/gaze-hand-fusion.mjs",
+    "./browser-gaze-fusion": "./air-gaze-fusion.js"
   },
   "files": [
     "sdk",
     "air-gesture-sdk.js",
     "air-gesture-vocabulary.js",
     "air-gesture-vocabulary.css",
+    "air-gaze-fusion.js",
+    "air-gaze-fusion.css",
     "SDK.md"
   ],
   "sideEffects": [
     "./air-gesture-sdk.js",
     "./air-gesture-vocabulary.js",
+    "./air-gaze-fusion.js",
     "./sdk/browser-bridge.mjs"
   ]
 }
