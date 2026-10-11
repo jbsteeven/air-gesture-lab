@@ -1,14 +1,14 @@
-# Air Gesture SDK v2.4
+# Air Gesture SDK v2.5
 
-La v2.4 introduce **Air Gesture Vocabulary**, un livello opzionale sopra il motore gesture che traduce pose e gesture già validate in trigger astratti configurabili.
+La v2.5 aggiunge **Gaze-Hand Fusion Experimental**, un secondo layer opzionale che combina il puntatore della mano con una stima dello sguardo derivata dai landmark di viso e iride.
 
-Il principio è deliberatamente non distruttivo:
+Il principio resta non distruttivo:
 
-- il Vocabulary è `OFF` per default;
-- il Gesture Engine continua a funzionare come prima;
-- le soglie di pinch, palm, fist, swipe e scroll non vengono cambiate;
-- il Vocabulary non esegue automaticamente azioni dell'app: produce trigger e mapping;
-- nella demo principale l'attivazione utente avviene dal pannello **Impostazioni**.
+- Gaze-Hand Fusion è `OFF` per default;
+- Air Gesture Vocabulary resta indipendente e `OFF` per default;
+- le soglie del Gesture Engine non vengono modificate;
+- senza calibrazione valida lo sguardo non sposta il puntatore;
+- se il segnale gaze manca o diventa troppo vecchio, il controllo torna automaticamente alla sola mano.
 
 ## Import ESM
 
@@ -22,8 +22,8 @@ import {
   AirLowLightMonitor,
   AirRobustnessCore,
   AirGestureVocabulary,
-  VOCABULARY_DICTIONARY,
-  DEFAULT_VOCABULARY_MAPPING,
+  AirIrisGazeEstimator,
+  AirGazeHandFusion,
   createGestureRuntime,
   createRobustGestureRuntime
 } from './sdk/index.mjs';
@@ -32,208 +32,194 @@ import {
 Versione corrente:
 
 ```js
-VERSION === '2.4.0';
+VERSION === '2.5.0';
 ```
 
-## Vocabulary ESM
+## AirIrisGazeEstimator
+
+`AirIrisGazeEstimator` riceve landmark Face Mesh con raffinamento iride. Il core non apre la camera e non dipende dal DOM.
 
 ```js
-const engine = new AirGestureEngine();
-const vocabulary = new AirGestureVocabulary(engine);
+const estimator = new AirIrisGazeEstimator();
 
-vocabulary.snapshot().enabled; // false
-```
-
-Attivazione esplicita:
-
-```js
-vocabulary.enable();
-```
-
-Disattivazione:
-
-```js
-vocabulary.disable();
-```
-
-Il modulo può osservare i landmark senza eseguire comandi:
-
-```js
-vocabulary.observeLandmarks(landmarks);
-```
-
-Le gesture discrete validate dal Gesture Engine possono essere inoltrate con:
-
-```js
-vocabulary.handleGesture({ type: 'pinch' });
-```
-
-## Dizionario iniziale
-
-```js
-VOCABULARY_DICTIONARY
-```
-
-contiene:
-
-- `PALM`
-- `FIST`
-- `POINT`
-- `V_SIGN`
-- `PINCH`
-- `SWIPE_LEFT`
-- `SWIPE_RIGHT`
-
-Il mapping standard è:
-
-```js
-DEFAULT_VOCABULARY_MAPPING
-```
-
-con valori astratti `BACK`, `PAUSE`, `POINT`, `SCROLL`, `SELECT`, `PREVIOUS`, `NEXT`.
-
-## Trigger
-
-```js
-const off = vocabulary.onTrigger(trigger => {
-  console.log(trigger.token, trigger.action, trigger.source);
+estimator.setCalibration({
+  center: { x: 0.50, y: 0.50 },
+  left:   { x: 0.36, y: 0.50 },
+  right:  { x: 0.64, y: 0.50 },
+  top:    { x: 0.50, y: 0.38 },
+  bottom: { x: 0.50, y: 0.62 }
 });
+
+const gaze = estimator.estimate(faceLandmarks);
 ```
 
-Esempio payload:
+I punti di calibrazione contengono coordinate **raw dell'iride**, non coordinate dello schermo. La demo browser raccoglie questi campioni automaticamente durante la calibrazione a cinque punti.
+
+Il risultato, quando calibrato, contiene:
 
 ```js
 {
-  token: 'PINCH',
-  action: 'SELECT',
-  source: 'gesture',
-  timestamp: 0
+  x: 0.63,
+  y: 0.41,
+  rawX: 0.54,
+  rawY: 0.47,
+  confidence: 0.82,
+  calibrated: true
 }
 ```
 
-Il mapping può essere modificato:
+## AirGazeHandFusion
+
+Modalità supportate:
+
+- `off` — nessuna modifica al puntatore;
+- `assist` — correzione conservativa quando mano e sguardo convergono sullo stesso target;
+- `fusion` — correzione più forte e una piccola componente gaze anche senza target.
 
 ```js
-vocabulary.setMapping('PALM', 'TRIGGER_1');
+const fusion = new AirGazeHandFusion({ mode: 'assist' });
+
+fusion.updateGaze({
+  x: 0.72,
+  y: 0.38,
+  confidence: 0.88,
+  timestamp: Date.now()
+});
+
+const pointer = fusion.resolve(
+  { x: 0.66, y: 0.40 },
+  [
+    { id: 'target-a', left: 0.68, top: 0.30, right: 0.88, bottom: 0.48 }
+  ]
+);
 ```
+
+Il risultato include, quando disponibile, `target`, `agreement`, `score` e `assisted`.
 
 ## Runtime ESM
 
-`createGestureRuntime()` e `createRobustGestureRuntime()` espongono sempre `runtime.vocabulary`, ma il Vocabulary resta disattivato finché non viene richiesto.
+`createGestureRuntime()` e `createRobustGestureRuntime()` espongono:
 
 ```js
-const runtime = createRobustGestureRuntime();
+runtime.gazeEstimator;
+runtime.gazeFusion;
 
-runtime.snapshot().vocabulary.enabled; // false
-runtime.setVocabularyEnabled(true);
-runtime.setVocabularyMapping('PINCH', 'SELECT');
+runtime.processFaceLandmarks(faceLandmarks);
+runtime.setGazeCalibration(points);
+runtime.clearGazeCalibration();
+runtime.setGazeFusionMode('assist');
+runtime.resolvePointer(handPointer, normalizedTargets);
 
-runtime.on('vocabulary', trigger => {
-  console.log(trigger);
-});
+runtime.on('gaze', gaze => {});
+runtime.on('fusedpointer', pointer => {});
 ```
 
-È possibile abilitarlo alla creazione del runtime:
+Il runtime resta compatibile con le applicazioni hand-only: la modalità gaze iniziale è `off`.
+
+## Browser integration
+
+La demo principale usa lo stesso stream della fotocamera frontale già aperto per le mani. Il browser adapter:
 
 ```js
-const runtime = createRobustGestureRuntime({
-  vocabulary: {
-    enabled: true,
-    holdMs: 650
-  }
-});
+window.AirGazeFusion
 ```
 
-Per la demo principale Air Gesture Lab questa attivazione automatica non viene usata: l'utente decide dal pannello Impostazioni.
+espone:
 
-## Ordine con Robustness
+```js
+AirGazeFusion.setEnabled(true);
+AirGazeFusion.setMode('assist');
+AirGazeFusion.startCalibration();
+AirGazeFusion.resetCalibration();
+AirGazeFusion.snapshot();
+AirGazeFusion.onGaze(callback);
+AirGazeFusion.onFusion(callback);
+```
 
-Nel runtime ESM il flusso è:
+L'attivazione avviene dalle **Impostazioni**. Il Face Mesh viene caricato dinamicamente solo quando la funzione è attiva. Il video resta invisibile.
+
+La calibrazione browser usa cinque punti:
 
 ```text
-Landmarks
-  -> Tracking Quality Guard / Hand Recovery
-  -> Air Gesture Vocabulary
-  -> Gesture Engine
-  -> Command Router
+CENTER
+LEFT
+RIGHT
+TOP
+BOTTOM
 ```
 
-Di conseguenza un frame bloccato dai guardrail non viene usato per costruire un trigger del Vocabulary.
+e viene conservata in `localStorage` sul dispositivo.
 
-## Browser API
-
-La demo principale espone:
+## Browser SDK facade
 
 ```js
-window.AirGestureVocabulary
+const sdk = window.AirGestureSDK;
+
+sdk.VERSION; // 2.5.0
+sdk.setGazeEnabled(true);
+sdk.setGazeMode('assist');
+await sdk.startGazeCalibration();
+
+sdk.onGaze(g => console.log(g));
+sdk.onFusion(f => console.log(f));
+sdk.onGazeChange(state => console.log(state));
 ```
 
-con:
+Lo snapshot include:
 
 ```js
-AirGestureVocabulary.enabled;
-AirGestureVocabulary.snapshot();
-AirGestureVocabulary.setEnabled(true);
-AirGestureVocabulary.setMapping('PINCH', 'SELECT');
-AirGestureVocabulary.resetMapping();
-AirGestureVocabulary.subscribe(callback);
-AirGestureVocabulary.onTrigger(callback);
+sdk.snapshot().gaze
+sdk.snapshot().capabilities.gazeFusion
 ```
 
-La facade browser principale espone inoltre:
+## Relazione con Air Gesture Vocabulary
 
-```js
-window.AirGestureSDK.VERSION; // 2.4.0
-window.AirGestureSDK.vocabulary;
-window.AirGestureSDK.onVocabulary(callback);
-window.AirGestureSDK.onVocabularyChange(callback);
-```
-
-Gli eventi browser disponibili sono:
+Gaze-Hand Fusion e Air Gesture Vocabulary sono due layer distinti.
 
 ```text
-airvocabularychange
-airvocabularytrigger
-airgesture:vocabulary
-airgesture:vocabularychange
+HAND LANDMARKS
+   -> GESTURE ENGINE
+   -> VOCABULARY (optional)
+
+FACE / IRIS LANDMARKS
+   -> GAZE ESTIMATOR
+   -> GAZE-HAND FUSION (optional)
+
+HAND POINTER + FUSED TARGET
+   -> APPLICATION UI / COMMAND ROUTER
 ```
 
-## Impostazioni della demo principale
+L'attivazione di uno non attiva automaticamente l'altro.
 
-Il pulsante Impostazioni apre il pannello dedicato. L'utente può:
+## Robustness e fallback
 
-- attivare/disattivare Air Gesture Vocabulary;
-- visualizzare il vocabolario corrente;
-- cambiare il mapping di ciascun token;
-- ripristinare il mapping standard.
+Il Gesture Engine e i guardrail hand restano la fonte primaria del controllo. Gaze-Hand Fusion non modifica le soglie di pinch, swipe, palm, fist o scroll.
 
-Non sono presenti preset legati a settori o scenari applicativi specifici.
+Il segnale gaze viene ignorato quando:
 
-## Robustness Core
+- non è calibrato;
+- il volto o l'iride non sono rilevati;
+- la confidence è insufficiente;
+- il campione è più vecchio della finestra ammessa.
 
-Gli stati restano:
+Questo impedisce che una perdita temporanea del face tracking interrompa la navigazione tramite mano.
 
-- `READY`
-- `LOW LIGHT`
-- `DEGRADED`
-- `RECOVERING`
-- `NO HAND`
+## Precisione
 
-Il Vocabulary non modifica questi stati e non modifica `commandSafe`.
+La v2.5 usa una normale camera frontale e realizza **fusione visiva monoculare**, non eye tracking IR dedicato e non triangolazione stereoscopica.
+
+La qualità può variare con distanza, illuminazione, movimento della testa, occhiali, riflessi, qualità dell'ottica e posizione del dispositivo. Per questo lo sguardo viene usato come segnale ausiliario e non come unico comando di selezione.
 
 ## Contract tests
 
-La suite `tests/sdk-contract.test.mjs` verifica:
+La suite verifica:
 
-- versione `2.4.0`;
-- Vocabulary OFF per default;
-- assenza di trigger quando è OFF;
-- trigger dopo attivazione;
-- mapping personalizzato;
-- Command Router;
-- Low Light;
-- Robustness Core;
-- Quality Guard -> Hand Recovery.
+- versione `2.5.0`;
+- Gaze-Hand Fusion `off` per default;
+- puntatore invariato quando il layer è spento;
+- calibrazione e mapping del centro;
+- assistenza verso un target quando mano e gaze concordano;
+- contratti precedenti di Vocabulary, Command Router, Low Light, Robustness Core e Quality Guard.
 
 Esecuzione:
 
@@ -243,13 +229,14 @@ npm test
 
 ## Package exports
 
-`package.json` espone anche:
+`package.json` espone inoltre:
 
 ```json
 {
-  "./vocabulary": "./sdk/vocabulary/index.mjs",
-  "./browser-vocabulary": "./air-gesture-vocabulary.js"
+  "./fusion": "./sdk/fusion/index.mjs",
+  "./fusion/gaze-hand-fusion": "./sdk/fusion/gaze-hand-fusion.mjs",
+  "./browser-gaze-fusion": "./air-gaze-fusion.js"
 }
 ```
 
-Il package resta `private: true`; la v2.4 prepara il Vocabulary alla riutilizzazione nelle applicazioni senza pubblicazione automatica su registry esterni.
+Il package resta `private: true`.
