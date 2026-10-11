@@ -7,12 +7,20 @@ on:
       - 'sdk/**'
       - 'tests/**'
       - 'package.json'
+      - 'app.js'
+      - 'air-gaze-fusion.js'
+      - 'air-gesture-sdk.js'
+      - 'air-gesture-vocabulary.js'
       - '.github/workflows/sdk-contract.yml'
   pull_request:
     paths:
       - 'sdk/**'
       - 'tests/**'
       - 'package.json'
+      - 'app.js'
+      - 'air-gaze-fusion.js'
+      - 'air-gesture-sdk.js'
+      - 'air-gesture-vocabulary.js'
 
 permissions:
   contents: read
