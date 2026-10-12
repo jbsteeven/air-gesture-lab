@@ -1,6 +1,6 @@
 (()=>{
 const ENABLE_KEY='air_gaze_enabled',MODE_KEY='air_gaze_mode',CAL_KEY='air_gaze_calibration';
-const FRAME_INTERVAL=80,CAL_TARGET=7,CAL_MIN=3,CAL_TIMEOUT=3200;
+const FRAME_INTERVAL=220,CAL_FRAME_INTERVAL=90,CAL_TARGET=7,CAL_MIN=3,CAL_TIMEOUT=3200;
 let enabled=localStorage.getItem(ENABLE_KEY)==='1';
 let mode=['assist','fusion'].includes(localStorage.getItem(MODE_KEY))?localStorage.getItem(MODE_KEY):'assist';
 let calibration=loadCalibration(),estimator=null,fusion=null,faceMesh=null,initPromise=null,busy=false,lastProcess=0,lastGaze=null,lastFusion=null,statusText='OFF',calRun=0,calCapture=null;
@@ -59,7 +59,7 @@ function onFaceResults(r){
 }
 async function processFrame(video){
  if(!enabled||!video)return false;
- const now=performance.now();if(busy||now-lastProcess<FRAME_INTERVAL)return false;lastProcess=now;
+ const now=performance.now(),interval=calCapture?CAL_FRAME_INTERVAL:FRAME_INTERVAL;if(busy||now-lastProcess<interval)return false;lastProcess=now;
  try{await ensureRuntime()}catch(e){return false}
  if(!faceMesh)return false;
  busy=true;
@@ -171,7 +171,7 @@ function updateHud(){
 ensureUi();
 if(enabled){statusText=calibration?'AVVIO':'DA CALIBRARE';ensureRuntime().catch(()=>{})}
 window.AirGazeFusion=Object.freeze({
- get enabled(){return enabled},get mode(){return mode},get calibrated(){return!!calibration},get state(){return snapshot()},
+ get enabled(){return enabled},get mode(){return mode},get calibrated(){return!!calibration},get calibrating(){return!!calCapture},get state(){return snapshot()},
  setEnabled,setMode,startCalibration,cancelCalibration,resetCalibration,processFrame,resolvePointer,snapshot,
  subscribe(fn){if(typeof fn!=='function')return()=>{};listeners.add(fn);try{fn(snapshot())}catch(e){}return()=>listeners.delete(fn)},
  onGaze(fn){if(typeof fn!=='function')return()=>{};gazeListeners.add(fn);return()=>gazeListeners.delete(fn)},
