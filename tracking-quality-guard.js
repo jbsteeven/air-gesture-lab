@@ -50,7 +50,6 @@ engine.process=function(l){
   badFrames++;goodFrames=0;
   if(badFrames===2)transientReset('tracking-warning');
   if(badFrames>=warnAt)show('QUALITY CHECK',info.reason,clamp(badFrames/needed,0,1));
-  lastCenter=info.center;lastRaw=info.raw;
   if(badFrames>=needed){const handed=triggerGuard(info);if(handed)return baseProcess(l)}
   return;
  }
