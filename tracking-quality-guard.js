@@ -3,7 +3,7 @@ if(typeof engine==='undefined')return;
 const $=s=>document.querySelector(s);
 const baseProcess=engine.process.bind(engine);
 let badFrames=0,goodFrames=0,guarding=false,lastCenter=null,lastRaw=0,triggers=0,hideTimer=0;
-const BAD_FRAMES=6,LOW_LIGHT_BAD_FRAMES=9,GOOD_CONFIRM=3,DIST_MIN=.47,DIST_MAX=1.88,EDGE_LIMIT=10;
+const BAD_FRAMES=6,LOW_LIGHT_BAD_FRAMES=9,GOOD_CONFIRM=2,DIST_MIN=.43,DIST_MAX=2.02,EDGE_LIMIT=10;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function lowLight(){const s=window.AirLightMonitor?.state;return!!(s&&s.dim)}
 function ensureUi(){
@@ -30,6 +30,12 @@ function softReset(reason='tracking-quality'){
  if(typeof engine.clearIntent==='function')engine.clearIntent();if(hadScroll)engine.emit('mode',{name:'scroll',active:false,reason});
  if(typeof neutralReady!=='undefined')neutralReady=false;if(typeof resetDwell==='function')resetDwell(false);
 }
+function transientReset(reason='tracking-transient'){
+ engine.hist=[];engine.pinchAt=0;engine.palmAt=0;engine.fistAt=0;
+ if(typeof engine.clearIntent==='function')engine.clearIntent();
+ if(typeof resetDwell==='function')resetDwell(false);
+ try{engine.emit('qualityguard',{phase:'transient-reset',reason,badFrames})}catch(e){}
+}
 function triggerGuard(info){
  guarding=true;triggers++;softReset('tracking-guard');show('COMANDI SOSPESI',info.reason||'TRACKING DEGRADATO',1);
  try{engine.emit('qualityguard',{phase:'trigger',triggers,...info})}catch(e){}
@@ -41,16 +47,18 @@ engine.process=function(l){
  if(typeof calibrator!=='undefined'&&calibrator?.active){badFrames=0;goodFrames=0;lastCenter=null;lastRaw=0;hide();return baseProcess(l)}
  const info=inspect(l),needed=info.dim?LOW_LIGHT_BAD_FRAMES:BAD_FRAMES,warnAt=info.dim?4:3;
  if(info.bad){
-  badFrames++;goodFrames=0;softReset('tracking-warning');
+  badFrames++;goodFrames=0;
+  if(badFrames===2)transientReset('tracking-warning');
   if(badFrames>=warnAt)show('QUALITY CHECK',info.reason,clamp(badFrames/needed,0,1));
   lastCenter=info.center;lastRaw=info.raw;
   if(badFrames>=needed){const handed=triggerGuard(info);if(handed)return baseProcess(l)}
   return;
  }
- if(badFrames>0){
+ if(badFrames===1){badFrames=0;goodFrames=0;lastCenter=info.center;lastRaw=info.raw;hide(180);return baseProcess(l)}
+ if(badFrames>1){
   goodFrames++;lastCenter=info.center;lastRaw=info.raw;
   if(goodFrames<GOOD_CONFIRM){show('STABILIZZA','QUALITÀ IN RIPRISTINO',goodFrames/GOOD_CONFIRM);return}
-  badFrames=0;goodFrames=0;show('TRACKING OK','COMANDI RIATTIVATI',1,500);
+  badFrames=0;goodFrames=0;show('TRACKING OK','COMANDI RIATTIVATI',1,380);
  }
  lastCenter=info.center;lastRaw=info.raw;
  return baseProcess(l);
