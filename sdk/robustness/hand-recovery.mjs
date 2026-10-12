@@ -1,5 +1,5 @@
 export class AirHandRecovery{
- constructor(engine,options={}){if(!engine)throw new Error('AirHandRecovery richiede un engine');this.engine=engine;this.minTime=Number.isFinite(options.minTime)?options.minTime:430;this.minStableFrames=Number.isFinite(options.minStableFrames)?options.minStableFrames:5;this.maxMove=Number.isFinite(options.maxMove)?options.maxMove:.030;this.pendingLoss=false;this.active=false;this.startedAt=0;this.stableFrames=0;this.lastCenter=null;this.recoveries=0;this.listeners=new Set()}
+ constructor(engine,options={}){if(!engine)throw new Error('AirHandRecovery richiede un engine');this.engine=engine;this.minTime=Number.isFinite(options.minTime)?options.minTime:280;this.minStableFrames=Number.isFinite(options.minStableFrames)?options.minStableFrames:3;this.maxMove=Number.isFinite(options.maxMove)?options.maxMove:.038;this.pendingLoss=false;this.active=false;this.startedAt=0;this.stableFrames=0;this.lastCenter=null;this.recoveries=0;this.listeners=new Set()}
  clamp(v,a,b){return Math.max(a,Math.min(b,v))}
  centerOf(l){return this.engine.palmCenter?this.engine.palmCenter(l):{x:(l[0].x+l[9].x)/2,y:(l[0].y+l[9].y)/2}}
  subscribe(fn){if(typeof fn!=='function')return()=>{};this.listeners.add(fn);try{fn({phase:'snapshot',...this.snapshot()})}catch(e){}return()=>this.listeners.delete(fn)}
