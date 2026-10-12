@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {VERSION,AirGestureEngine,AirHandRecovery,AirTrackingQualityGuard,AirLowLightMonitor,AirRobustnessCore,AirGestureVocabulary,AirIrisGazeEstimator,AirGazeHandFusion,createGestureRuntime,createRobustGestureRuntime} from '../sdk/index.mjs';
 
-test('SDK version contract',()=>{assert.equal(VERSION,'2.5.1')});
+test('SDK version contract',()=>{assert.equal(VERSION,'2.5.2')});
 
 test('base runtime preserves command routing contract',()=>{const runtime=createGestureRuntime({context:'detail'});let command=null;runtime.on('command',c=>command=c);runtime.router.route({type:'scroll',direction:'down'});assert.equal(command.command,'scroll');assert.equal(command.context,'detail');assert.equal(runtime.snapshot().profile,'balanced')});
 
@@ -17,6 +17,10 @@ test('gaze estimator accepts small but valid mobile gaze spans',()=>{const estim
 test('gaze calibration maps calibrated center and fusion can assist a nearby hand target',()=>{const estimator=new AirIrisGazeEstimator({smoothing:1});assert.equal(estimator.setCalibration({center:{x:.5,y:.5},left:{x:.36,y:.5},right:{x:.64,y:.5},top:{x:.5,y:.38},bottom:{x:.5,y:.62}}),true);const mapped=estimator.mapRaw({x:.5,y:.5});assert.ok(Math.abs(mapped.x-.5)<1e-9);assert.ok(Math.abs(mapped.y-.5)<1e-9);const fusion=new AirGazeHandFusion({mode:'assist'});fusion.updateGaze({x:.8,y:.5,confidence:.95,timestamp:Date.now()});const out=fusion.resolve({x:.66,y:.5},[{id:'target',left:.7,top:.35,right:.9,bottom:.65}]);assert.equal(out.target,'target');assert.equal(out.assisted,true);assert.ok(out.x>.66)});
 
 test('runtime gaze layer remains off unless explicitly enabled',()=>{const runtime=createGestureRuntime();assert.equal(runtime.gazeFusion.snapshot().mode,'off');assert.equal(runtime.setGazeFusionMode('assist'),true);assert.equal(runtime.snapshot().gaze.fusion.mode,'assist');assert.equal(runtime.setGazeCalibration({center:{x:.5,y:.5},left:{x:.36,y:.5},right:{x:.64,y:.5},top:{x:.5,y:.38},bottom:{x:.5,y:.62}}),true)});
+
+test('single bad tracking frame preserves command readiness',()=>{const engine=new AirGestureEngine();engine.commandReady=true;const guard=new AirTrackingQualityGuard(engine);const bad=Array.from({length:21},()=>({x:.5,y:.5,z:0}));bad[0]={x:.5,y:.5,z:0};bad[9]={x:.5,y:.51,z:0};const first=guard.observe(bad);assert.equal(first.allow,false);assert.equal(engine.commandReady,true);assert.equal(guard.snapshot().badFrames,1)});
+
+test('hand recovery defaults favor faster stable reacquisition',()=>{const engine=new AirGestureEngine();const recovery=new AirHandRecovery(engine);assert.equal(recovery.minTime,280);assert.equal(recovery.minStableFrames,3);assert.equal(recovery.maxMove,.038)});
 
 test('low light monitor classifies LOW and recovers to OK',()=>{const light=new AirLowLightMonitor({alpha:1,lowConfirm:1,goodConfirm:1});assert.equal(light.updateLuminance(30).level,'LOW');assert.equal(light.snapshot().dim,true);assert.equal(light.updateLuminance(90).level,'OK');assert.equal(light.snapshot().dim,false)});
 
