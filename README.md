@@ -10,7 +10,7 @@ PWA **gesture-native** controllata tramite la fotocamera frontale senza mostrare
 - **v2.2** — Modular Robustness SDK: Hand Recovery, Tracking Quality Guard, Low Light Monitor e Robustness Core diventano moduli ESM headless.
 - **v2.3** — External Integration Demo & Contract Tests.
 - **v2.4** — Air Gesture Vocabulary: trigger layer opzionale e configurabile, **OFF di default**.
-- **v2.5.1** — Gaze-Hand Fusion Experimental: lo sguardo diventa un secondo segnale opzionale per affinare il bersaglio indicato dalla mano.
+- **v2.5.2** — Gaze-Hand Fusion Experimental: lo sguardo diventa un secondo segnale opzionale per affinare il bersaglio indicato dalla mano.
 
 ## Architettura
 
@@ -28,9 +28,13 @@ Package ESM:
 
 `Hand Landmarks + optional Face Landmarks -> Gesture Engine + Robustness + Vocabulary + Gaze-Hand Fusion -> Host Application`
 
-## Gaze-Hand Fusion v2.5.1
+## Hand Continuity v2.5.2
 
-La v2.5.1 corregge la calibrazione: acquisizione adattiva dei campioni, tempi più lunghi sui telefoni lenti, feedback sul numero di campioni, soglie più tolleranti per movimenti oculari piccoli e riconoscimento più permissivo in condizioni difficili.
+La v2.5.2 interviene sulla continuità della mano prima ancora che sulle gesture: una perdita di uno o pochi frame non fa più sparire subito il cursore, il Quality Guard non azzera più il motore al primo frame anomalo, la riacquisizione è più rapida e il detector Hands usa soglie più tolleranti. Quando Gaze-Hand Fusion è attivo, il face tracking viene campionato a frequenza ridotta per lasciare priorità computazionale alla mano.
+
+## Gaze-Hand Fusion v2.5.2
+
+La v2.5.2 corregge la calibrazione: acquisizione adattiva dei campioni, tempi più lunghi sui telefoni lenti, feedback sul numero di campioni, soglie più tolleranti per movimenti oculari piccoli e riconoscimento più permissivo in condizioni difficili.
 
 La funzione è **OFF di default** e viene attivata esclusivamente dalle **Impostazioni**.
 
@@ -43,7 +47,7 @@ Prima di contribuire alla selezione lo sguardo deve essere calibrato con una seq
 
 La camera resta invisibile. Face tracking e hand tracking utilizzano lo stesso stream della fotocamera frontale. Il Face Mesh viene caricato e processato soltanto quando Gaze-Hand Fusion è attivo; il campionamento del volto è limitato per non sostituire né rallentare intenzionalmente il Gesture Engine principale.
 
-La v2.5.1 implementa **fusione visiva monoculare**, non triangolazione stereoscopica. La precisione dipende da fotocamera, distanza, stabilità della testa, illuminazione, occhiali e riflessi. Se lo sguardo non è disponibile o è stale, il puntatore ritorna automaticamente al controllo della sola mano.
+La v2.5.2 implementa **fusione visiva monoculare**, non triangolazione stereoscopica. La precisione dipende da fotocamera, distanza, stabilità della testa, illuminazione, occhiali e riflessi. Se lo sguardo non è disponibile o è stale, il puntatore ritorna automaticamente al controllo della sola mano.
 
 ## Air Gesture Vocabulary
 
@@ -68,7 +72,7 @@ I nomi sono volutamente neutri e non dipendono da uno scenario applicativo speci
 ```js
 const sdk = window.AirGestureSDK;
 
-sdk.VERSION; // 2.5.1
+sdk.VERSION; // 2.5.2
 sdk.snapshot();
 
 sdk.setGazeEnabled(true);
@@ -88,7 +92,7 @@ window.AirGazeFusion.setMode('fusion');
 window.AirGazeFusion.startCalibration();
 ```
 
-## ESM Package v2.5.1
+## ESM Package v2.5.2
 
 ```js
 import {
@@ -124,7 +128,7 @@ Il core ESM non dipende dal DOM: l'applicazione ospite decide come ottenere i fa
 
 `tests/sdk-contract.test.mjs` verifica anche:
 
-- `VERSION === '2.5.1'`;
+- `VERSION === '2.5.2'`;
 - Gaze-Hand Fusion `OFF` per default;
 - nessuna alterazione del puntatore quando il layer è `OFF`;
 - mapping della calibrazione;
@@ -139,7 +143,7 @@ npm test
 
 ## Package metadata
 
-`package.json` è alla versione `2.5.1` ed espone anche `./fusion`. Il package resta `private: true`.
+`package.json` è alla versione `2.5.2` ed espone anche `./fusion`. Il package resta `private: true`.
 
 ## Privacy
 
